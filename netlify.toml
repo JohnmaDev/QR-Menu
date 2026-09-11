@@ -1,0 +1,13 @@
+# ==============================================================================
+# NETLIFY CONFIGURATION - QR BAR FRONTEND (MONOREPO)
+# ==============================================================================
+
+[build]
+  command = "npm run build --workspace=@qr-menu/shared && npm run build --workspace=@qr-menu/frontend"
+  publish = "apps/frontend/dist"
+
+# Cache de assets inmutables de Vite (JS, CSS, imágenes)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

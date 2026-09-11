@@ -22,15 +22,43 @@ const isLoading = ref(true);
 const errorMessage = ref<string | null>(null);
 const activeCategoryId = ref<number | null>(null);
 
+const CACHE_KEY = 'qr_menu_cached_data';
+
+// Hidratación instantánea desde localStorage si existe (render en 0ms)
+const cachedMenu = typeof window !== 'undefined' && window.localStorage ? localStorage.getItem(CACHE_KEY) : null;
+let hasInitialCache = false;
+if (cachedMenu) {
+  try {
+    const parsed = JSON.parse(cachedMenu);
+    if (parsed && Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+      menuData.value = parsed;
+      activeCategoryId.value = parsed.categories[0].id;
+      isLoading.value = false;
+      hasInitialCache = true;
+    }
+  } catch {
+    // Si la caché estuviera corrupta, continuar normalmente
+  }
+}
+
 async function loadMenu() {
-  isLoading.value = true;
+  if (!hasInitialCache && !menuData.value) {
+    isLoading.value = true;
+  }
   errorMessage.value = null;
 
   try {
     const data = await fetchMenu();
     menuData.value = data;
-    if (data.categories.length > 0) {
+    if (data.categories.length > 0 && !activeCategoryId.value) {
       activeCategoryId.value = data.categories[0].id;
+    }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      } catch {
+        // QuotaExceededError o modo incógnito restringido
+      }
     }
   } catch (err: unknown) {
     if (err instanceof ApiClientError) {

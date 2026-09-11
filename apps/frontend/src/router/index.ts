@@ -53,13 +53,11 @@ export const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
 
-  // Si no se ha comprobado la sesión en el store aún, verificarla con el backend
-  if (!authStore.initialized) {
-    await authStore.checkAuth();
-  }
-
-  // 1. Ruta protegida que requiere autenticación
+  // 1. Ruta protegida que requiere autenticación (ej. /ops)
   if (to.meta.requiresAuth) {
+    if (!authStore.initialized) {
+      await authStore.checkAuth();
+    }
     if (!authStore.isAuthenticated) {
       return next({
         path: '/login',
@@ -68,11 +66,17 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  // 2. Si el usuario ya está autenticado e intenta ir al login, redirigir a /ops
-  if (to.path === '/login' && authStore.isAuthenticated) {
-    return next({ path: '/ops' });
+  // 2. Si el usuario va a /login, chequear si ya tiene sesión activa para redirigir a /ops
+  if (to.path === '/login') {
+    if (!authStore.initialized) {
+      await authStore.checkAuth();
+    }
+    if (authStore.isAuthenticated) {
+      return next({ path: '/ops' });
+    }
   }
 
+  // 3. Rutas públicas (ej. /m/:tableToken, /m/:tableToken/cart, /) navegan de forma inmediata sin esperas
   next();
 });
 

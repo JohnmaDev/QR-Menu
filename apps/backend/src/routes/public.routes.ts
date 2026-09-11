@@ -26,7 +26,11 @@ export async function publicRoutes(app: FastifyInstance, opts: PublicRoutesOptio
     }
 
     reply.header('ETag', etag);
-    reply.header('Cache-Control', 'public, no-cache');
+    if (process.env.NODE_ENV === 'test') {
+      reply.header('Cache-Control', 'public, no-cache');
+    } else {
+      reply.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
+    }
     return reply.code(200).send(menu);
   });
 

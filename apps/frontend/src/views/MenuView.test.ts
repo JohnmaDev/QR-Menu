@@ -22,6 +22,7 @@ describe('MenuView Component', () => {
     setActivePinia(createPinia());
     vi.restoreAllMocks();
     pushMock.mockClear();
+    localStorage.clear();
   });
 
   it('renders loading spinner and then categories and products', async () => {

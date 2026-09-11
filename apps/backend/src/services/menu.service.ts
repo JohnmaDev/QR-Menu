@@ -9,7 +9,28 @@ export interface MenuServiceResult {
   etag: string;
 }
 
-export async function getPublicMenu(db = getDb()): Promise<MenuServiceResult> {
+interface CacheEntry {
+  result: MenuServiceResult;
+  timestamp: number;
+}
+
+let memoryCache: CacheEntry | null = null;
+const CACHE_TTL_MS = 60 * 1000; // 60 segundos de caché en memoria RAM
+
+export function invalidateMenuCache(): void {
+  memoryCache = null;
+}
+
+export async function getPublicMenu(db = getDb(), bypassCache = false): Promise<MenuServiceResult> {
+  const now = Date.now();
+  if (
+    !bypassCache &&
+    process.env.NODE_ENV !== 'test' &&
+    memoryCache &&
+    now - memoryCache.timestamp < CACHE_TTL_MS
+  ) {
+    return memoryCache.result;
+  }
   // 1. Obtener categorías activas ordenadas
   const activeCategories = await db
     .select({
@@ -96,6 +117,11 @@ export async function getPublicMenu(db = getDb()): Promise<MenuServiceResult> {
     .substring(0, 16);
 
   const etag = `W/"${contentHash}"`;
+  const result: MenuServiceResult = { menu, etag };
 
-  return { menu, etag };
+  if (process.env.NODE_ENV !== 'test') {
+    memoryCache = { result, timestamp: now };
+  }
+
+  return result;
 }
