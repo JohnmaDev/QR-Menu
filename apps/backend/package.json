@@ -1,0 +1,42 @@
+{
+  "name": "@qr-menu/backend",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:bootstrap": "tsx src/db/bootstrap-staging.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@qr-menu/shared": "*",
+    "argon2": "^0.45.1",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.12.3",
+    "pino": "^9.4.0",
+    "postgres": "^3.4.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "drizzle-kit": "^0.31.10",
+    "pino-pretty": "^11.2.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  }
+}

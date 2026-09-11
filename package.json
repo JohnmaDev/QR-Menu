@@ -1,0 +1,21 @@
+{
+  "name": "qr-menu-root",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace=@qr-menu/backend",
+    "dev:frontend": "npm run dev --workspace=@qr-menu/frontend",
+    "db:migrate": "npm run db:migrate --workspace=@qr-menu/backend",
+    "db:seed": "npm run db:seed --workspace=@qr-menu/backend",
+    "db:bootstrap": "npm run db:bootstrap --workspace=@qr-menu/backend"
+  }
+}
