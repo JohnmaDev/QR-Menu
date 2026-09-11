@@ -1,15 +1,12 @@
 # ==============================================================================
 # NETLIFY REDIRECTS & REVERSE PROXY - QR BAR FRONTEND
 # ==============================================================================
-# IMPORTANTE: Reemplazar 'https://REPLACE_WITH_ACTUAL_RAILWAY_URL.up.railway.app'
-# con la URL HTTPS pública real generada por Railway al desplegar el backend.
-#
 # 1. Reverse Proxy para API (/api/*)
-# Permite que el frontend en Netlify consuma el backend en el mismo origen (first-party),
-# garantizando el envío de cookies HttpOnly seguras y eliminando restricciones cross-site.
-/api/*  https://REPLACE_WITH_ACTUAL_RAILWAY_URL.up.railway.app/api/:splat  200!
+# Redirige las peticiones al backend alojado en Render manteniendo el mismo origen (first-party)
+# para el navegador, garantizando cookies de sesión seguras sin problemas cross-site.
+/api/*  https://qr-bar-backend.onrender.com/api/:splat  200!
 
 # 2. SPA Fallback
 # Redirige todas las rutas del cliente (ej. /m/:tableToken, /login, /ops) hacia index.html
 # para que Vue Router maneje la navegación sin provocar errores 404 en recargas.
-/*      /index.html                                                         200
+/*      /index.html                                     200
