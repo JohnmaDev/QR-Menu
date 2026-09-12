@@ -44,6 +44,33 @@ export function requireRole(allowedRoles: UserRole[]) {
   };
 }
 
+export function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true;
+  const normalized = origin.trim().replace(/\/+$/, '');
+  const rawCorsOrigin = process.env.CORS_ORIGIN?.trim();
+
+  // Si CORS_ORIGIN no está definido o es '*', permitir orígenes seguros por defecto (localhost y Vercel)
+  if (!rawCorsOrigin || rawCorsOrigin === '*') {
+    return (
+      normalized.includes('localhost') ||
+      normalized.endsWith('.vercel.app') ||
+      normalized.includes('127.0.0.1')
+    );
+  }
+
+  const allowedOrigins = rawCorsOrigin
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  return (
+    allowedOrigins.includes(normalized) ||
+    allowedOrigins.includes('*') ||
+    normalized.endsWith('.vercel.app') ||
+    normalized.includes('localhost')
+  );
+}
+
 export async function verifyCsrfProtection(
   request: FastifyRequest,
   _reply: FastifyReply
@@ -54,26 +81,19 @@ export async function verifyCsrfProtection(
     return;
   }
 
-  const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-  const allowedOrigins = rawCorsOrigin
-    .split(',')
-    .map((o) => o.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-
   const origin = request.headers['origin'];
   const referer = request.headers['referer'];
 
   // 1. Validar encabezado Origin si está presente
   if (origin) {
-    const normalizedOrigin = String(origin).replace(/\/+$/, '');
-    if (!allowedOrigins.includes(normalizedOrigin)) {
+    if (!isOriginAllowed(String(origin))) {
       throw new CsrfError(`Origen no autorizado: '${origin}'`);
     }
   } else if (referer) {
     // 2. Si Origin está ausente, validar origen extraído del Referer
     try {
-      const refererOrigin = new URL(String(referer)).origin.replace(/\/+$/, '');
-      if (!allowedOrigins.includes(refererOrigin)) {
+      const refererOrigin = new URL(String(referer)).origin;
+      if (!isOriginAllowed(refererOrigin)) {
         throw new CsrfError(`Referer no autorizado: '${referer}'`);
       }
     } catch {

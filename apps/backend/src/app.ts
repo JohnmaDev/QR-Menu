@@ -9,6 +9,7 @@ import { opsRoutes } from './routes/ops.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { AppError } from './errors.js';
 import { ApiErrorCode } from '@qr-menu/shared';
+import { isOriginAllowed } from './middleware/auth.middleware.js';
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -42,15 +43,14 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     contentSecurityPolicy: process.env.NODE_ENV === 'production',
   });
 
-  // Strict CORS
-  const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-  const allowedOrigins = rawCorsOrigin
-    .split(',')
-    .map((o) => o.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-
+  // Dynamic CORS supporting Vercel, production domains and localhost with credentials
   app.register(cors, {
-    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
+    origin: (origin, cb) => {
+      if (!origin || isOriginAllowed(origin)) {
+        return cb(null, true);
+      }
+      return cb(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'X-Idempotency-Key', 'If-None-Match', 'X-Requested-With'],
