@@ -45,30 +45,35 @@ export function requireRole(allowedRoles: UserRole[]) {
 }
 
 export function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return true;
+  if (!origin) return true; // Peticiones server-to-server o herramientas CLI
   const normalized = origin.trim().replace(/\/+$/, '');
   const rawCorsOrigin = process.env.CORS_ORIGIN?.trim();
 
-  // Si CORS_ORIGIN no está definido o es '*', permitir orígenes seguros por defecto (localhost y Vercel)
-  if (!rawCorsOrigin || rawCorsOrigin === '*') {
+  // 1. Si se definieron orígenes explícitos en CORS_ORIGIN, SOLO esos tienen permiso (Seguridad Estricta de Producción)
+  if (rawCorsOrigin && rawCorsOrigin !== '*') {
+    const allowedOrigins = rawCorsOrigin
+      .split(',')
+      .map((o) => o.trim().replace(/\/+$/, ''))
+      .filter(Boolean);
+
+    return allowedOrigins.includes(normalized);
+  }
+
+  // 2. Si CORS_ORIGIN tiene comodín explícito '*'
+  if (rawCorsOrigin === '*') {
+    return true;
+  }
+
+  // 3. En entorno de desarrollo o testing sin CORS_ORIGIN explícito, permitir localhost
+  if (process.env.NODE_ENV !== 'production') {
     return (
       normalized.includes('localhost') ||
-      normalized.endsWith('.vercel.app') ||
       normalized.includes('127.0.0.1')
     );
   }
 
-  const allowedOrigins = rawCorsOrigin
-    .split(',')
-    .map((o) => o.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-
-  return (
-    allowedOrigins.includes(normalized) ||
-    allowedOrigins.includes('*') ||
-    normalized.endsWith('.vercel.app') ||
-    normalized.includes('localhost')
-  );
+  // 4. En producción sin CORS_ORIGIN definido, denegar por seguridad
+  return false;
 }
 
 export async function verifyCsrfProtection(
