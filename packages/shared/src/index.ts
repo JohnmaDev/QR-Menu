@@ -7,7 +7,6 @@ import { z } from 'zod';
 export const UserRole = {
   ADMIN: 'ADMIN',
   CASHIER: 'CASHIER',
-  KITCHEN: 'KITCHEN',
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
@@ -125,6 +124,8 @@ export type PublicMenuResponse = z.infer<typeof PublicMenuResponseSchema>;
 export const OrderCreatedResponseSchema = z.object({
   orderCode: z.string(),
   orderNumber: z.number().int(),
+  dailyOrderNumber: z.number().int().optional(),
+  orderDate: z.string().optional(),
   tableName: z.string(),
   customerName: z.string().nullable().optional(),
   totalAmount: z.number(),
@@ -142,6 +143,8 @@ export type OrderCreatedResponse = z.infer<typeof OrderCreatedResponseSchema>;
 export const OrderStatusResponseSchema = z.object({
   orderCode: z.string(),
   orderNumber: z.number().int(),
+  dailyOrderNumber: z.number().int().optional(),
+  orderDate: z.string().optional(),
   tableName: z.string(),
   customerName: z.string().nullable().optional(),
   fulfillmentStatus: z.enum([
@@ -180,7 +183,7 @@ export type LoginInput = z.infer<typeof LoginInputSchema>;
 export const AuthUserSchema = z.object({
   id: z.string().uuid(),
   username: z.string(),
-  role: z.enum([UserRole.ADMIN, UserRole.CASHIER, UserRole.KITCHEN]),
+  role: z.enum([UserRole.ADMIN, UserRole.CASHIER]),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 
@@ -221,6 +224,8 @@ export type OpsOrderItem = z.infer<typeof OpsOrderItemSchema>;
 export const OpsOrderSchema = z.object({
   id: z.string().uuid(),
   orderNumber: z.number().int(),
+  dailyOrderNumber: z.number().int().optional(),
+  orderDate: z.string().optional(),
   publicCode: z.string(),
   tableName: z.string(),
   tableNumber: z.number().int(),
@@ -250,3 +255,68 @@ export const OpsOrdersResponseSchema = z.object({
   orders: z.array(OpsOrderSchema),
 });
 export type OpsOrdersResponse = z.infer<typeof OpsOrdersResponseSchema>;
+
+// ==============================================================================
+// ADMIN MANAGEMENT SCHEMAS (MESAS & PRODUCTOS)
+// ==============================================================================
+
+export const AdminTableSchema = z.object({
+  id: z.number().int(),
+  number: z.number().int(),
+  name: z.string(),
+  publicToken: z.string(),
+  isActive: z.boolean(),
+  createdAt: z.string(),
+});
+export type AdminTable = z.infer<typeof AdminTableSchema>;
+
+export const CreateTableInputSchema = z.object({
+  number: z.number().int().positive('El número de mesa debe ser positivo'),
+  name: z.string().trim().min(1, 'El nombre de la mesa es obligatorio').max(50),
+});
+export type CreateTableInput = z.infer<typeof CreateTableInputSchema>;
+
+export const UpdateTableInputSchema = z.object({
+  name: z.string().trim().min(1).max(50).optional(),
+  number: z.number().int().positive().optional(),
+  isActive: z.boolean().optional(),
+});
+export type UpdateTableInput = z.infer<typeof UpdateTableInputSchema>;
+
+export const AdminProductSchema = z.object({
+  id: z.number().int(),
+  categoryId: z.number().int(),
+  categoryName: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  price: z.number(),
+  imageUrl: z.string().nullable(),
+  isAvailable: z.boolean(),
+  sortOrder: z.number().int(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type AdminProduct = z.infer<typeof AdminProductSchema>;
+
+export const CreateProductInputSchema = z.object({
+  categoryId: z.number().int().positive('La categoría es obligatoria'),
+  name: z.string().trim().min(1, 'El nombre del producto es obligatorio').max(100),
+  description: z.string().trim().max(255).optional().nullable(),
+  price: z.number().nonnegative('El precio debe ser un número positivo o cero'),
+  imageUrl: z.string().trim().max(500).optional().nullable(),
+  isAvailable: z.boolean().optional().default(true),
+  sortOrder: z.number().int().optional().default(0),
+});
+export type CreateProductInput = z.infer<typeof CreateProductInputSchema>;
+
+export const UpdateProductInputSchema = z.object({
+  categoryId: z.number().int().positive().optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  description: z.string().trim().max(255).optional().nullable(),
+  price: z.number().nonnegative().optional(),
+  imageUrl: z.string().trim().max(500).optional().nullable(),
+  isAvailable: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+export type UpdateProductInput = z.infer<typeof UpdateProductInputSchema>;
+

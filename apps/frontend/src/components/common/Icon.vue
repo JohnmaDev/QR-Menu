@@ -207,6 +207,16 @@ const pixelSize = computed(() => (typeof props.size === 'number' ? `${props.size
     <g v-else-if="name === 'chevron-right'">
       <path d="m9 18 6-6-6-6" />
     </g>
+    <g v-else-if="name === 'chevron-down'">
+      <path d="m6 9 6 6 6-6" />
+    </g>
+    <g v-else-if="name === 'chevron-up'">
+      <path d="m18 15-6-6-6 6" />
+    </g>
+    <g v-else-if="name === 'close' || name === 'x'">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </g>
 
     <!-- Alerta / Warning -->
     <g v-else-if="name === 'alert'">

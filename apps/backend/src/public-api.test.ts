@@ -486,6 +486,8 @@ describe('FASE 2: Public API & Order Domain Comprehensive Tests', () => {
       const json = JSON.parse(statusRes.body);
 
       expect(json.orderCode).toBe(created.orderCode);
+      expect(json.orderCode).toMatch(/^M1-\d{2}$/);
+      expect(json.dailyOrderNumber).toBeDefined();
       expect(json.tableName).toBe('Mesa 1');
       expect(json.fulfillmentStatus).toBe('PENDING');
       expect(json.paymentStatus).toBe('UNPAID');
@@ -496,6 +498,36 @@ describe('FASE 2: Public API & Order Domain Comprehensive Tests', () => {
       expect(json).not.toHaveProperty('id');
       expect(json).not.toHaveProperty('idempotencyKey');
       expect(json).not.toHaveProperty('requestHash');
+    });
+
+    it('generates concise M{table}-{dailySeq} format and increments daily consecutive atomically', async () => {
+      const res1 = await app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: { 'x-idempotency-key': 'key_seq_test_1' },
+        payload: {
+          tableToken: 't_m1_valid123',
+          paymentMethodDeclared: 'CASH',
+          items: [{ productId: 1, quantity: 1 }],
+        },
+      });
+      const order1 = JSON.parse(res1.body);
+
+      const res2 = await app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: { 'x-idempotency-key': 'key_seq_test_2' },
+        payload: {
+          tableToken: 't_m1_valid123',
+          paymentMethodDeclared: 'CASH',
+          items: [{ productId: 1, quantity: 1 }],
+        },
+      });
+      const order2 = JSON.parse(res2.body);
+
+      expect(order1.orderCode).toMatch(/^M1-\d{2}$/);
+      expect(order2.orderCode).toMatch(/^M1-\d{2}$/);
+      expect(order2.dailyOrderNumber).toBe(order1.dailyOrderNumber + 1);
     });
 
     it('returns 404 for non-existent publicCode', async () => {

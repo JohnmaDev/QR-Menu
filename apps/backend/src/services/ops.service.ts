@@ -21,6 +21,7 @@ export interface ListOrdersFilters {
   fulfillmentStatus?: FulfillmentStatus;
   paymentStatus?: PaymentStatus;
   tableId?: number;
+  date?: string;
   limit?: number;
   offset?: number;
 }
@@ -40,11 +41,16 @@ export async function listOpsOrders(
   if (filters.tableId) {
     conditions.push(eq(orders.tableId, filters.tableId));
   }
+  if (filters.date) {
+    conditions.push(eq(orders.orderDate, filters.date));
+  }
 
   const query = db
     .select({
       id: orders.id,
       orderNumber: orders.orderNumber,
+      dailyOrderNumber: orders.dailyOrderNumber,
+      orderDate: orders.orderDate,
       publicCode: orders.publicCode,
       tableId: orders.tableId,
       tableName: tables.name,
@@ -103,6 +109,8 @@ export async function listOpsOrders(
   return orderRecords.map((o) => ({
     id: o.id,
     orderNumber: o.orderNumber,
+    dailyOrderNumber: o.dailyOrderNumber,
+    orderDate: o.orderDate,
     publicCode: o.publicCode,
     tableName: o.tableName,
     tableNumber: o.tableNumber,
@@ -126,6 +134,8 @@ export async function getOpsOrderById(
     .select({
       id: orders.id,
       orderNumber: orders.orderNumber,
+      dailyOrderNumber: orders.dailyOrderNumber,
+      orderDate: orders.orderDate,
       publicCode: orders.publicCode,
       tableId: orders.tableId,
       tableName: tables.name,
@@ -164,6 +174,8 @@ export async function getOpsOrderById(
   return {
     id: o.id,
     orderNumber: o.orderNumber,
+    dailyOrderNumber: o.dailyOrderNumber,
+    orderDate: o.orderDate,
     publicCode: o.publicCode,
     tableName: o.tableName,
     tableNumber: o.tableNumber,
@@ -198,8 +210,8 @@ export async function updateOrderFulfillment(
   opts: UpdateFulfillmentOptions = {},
   db = getDb()
 ): Promise<OpsOrder> {
-  // 1. Autorización por rol (ADMIN, KITCHEN y CASHIER en punto único de caja/barra)
-  // Todos los roles operativos tienen permiso para actualizar el estado de comandas.
+  // 1. Autorización por rol (ADMIN y CASHIER en punto único de caja/barra)
+  // Ambos roles operativos tienen permiso para actualizar el estado de comandas.
 
   // 2. Definición de estados previos válidos para la transición
   let validCurrentStatuses: FulfillmentStatus[] = [];
@@ -305,10 +317,10 @@ export async function confirmOrderPayment(
   opts: ConfirmPaymentOptions = {},
   db = getDb()
 ): Promise<OpsOrder> {
-  // 1. Autorización por rol: Cocina NO tiene permitido confirmar pagos
-  if (user.role === UserRole.KITCHEN) {
+  // 1. Autorización por rol: Solo ADMIN y CASHIER tienen permitido confirmar pagos
+  if (user.role !== UserRole.ADMIN && user.role !== UserRole.CASHIER) {
     throw new ForbiddenError(
-      'El rol COCINA no tiene permisos para confirmar pagos'
+      'No tiene permisos para confirmar pagos'
     );
   }
 

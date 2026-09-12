@@ -38,16 +38,17 @@ export async function opsRoutes(app: FastifyInstance, opts: OpsRoutesOptions = {
       fulfillmentStatus?: string;
       paymentStatus?: string;
       tableId?: string;
+      date?: string;
     };
   }>(
     '/orders',
     {
       preHandler: [
-        requireRole([UserRole.ADMIN, UserRole.CASHIER, UserRole.KITCHEN]),
+        requireRole([UserRole.ADMIN, UserRole.CASHIER]),
       ],
     },
     async (request, reply) => {
-      const { fulfillmentStatus, paymentStatus, tableId } = request.query;
+      const { fulfillmentStatus, paymentStatus, tableId, date } = request.query;
 
       const validFulfillment = Object.values(FulfillmentStatus).includes(
         fulfillmentStatus as FulfillmentStatus
@@ -62,12 +63,14 @@ export async function opsRoutes(app: FastifyInstance, opts: OpsRoutesOptions = {
         : undefined;
 
       const validTableId = tableId ? parseInt(tableId, 10) : undefined;
+      const validDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
 
       const orders = await listOpsOrders(
         {
           fulfillmentStatus: validFulfillment,
           paymentStatus: validPayment,
           tableId: isNaN(validTableId as number) ? undefined : validTableId,
+          date: validDate,
         },
         db
       );
@@ -81,7 +84,7 @@ export async function opsRoutes(app: FastifyInstance, opts: OpsRoutesOptions = {
     '/orders/:orderId',
     {
       preHandler: [
-        requireRole([UserRole.ADMIN, UserRole.CASHIER, UserRole.KITCHEN]),
+        requireRole([UserRole.ADMIN, UserRole.CASHIER]),
       ],
     },
     async (request, reply) => {
@@ -97,7 +100,7 @@ export async function opsRoutes(app: FastifyInstance, opts: OpsRoutesOptions = {
     {
       preHandler: [
         verifyCsrfProtection,
-        requireRole([UserRole.ADMIN, UserRole.KITCHEN, UserRole.CASHIER]),
+        requireRole([UserRole.ADMIN, UserRole.CASHIER]),
       ],
     },
     async (request, reply) => {

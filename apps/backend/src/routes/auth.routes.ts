@@ -72,11 +72,20 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions =
         db
       );
 
+      // Configuración de cookie adaptada para entornos cross-domain (Vercel + Render) o local
+      const cookieSameSite =
+        (process.env.COOKIE_SAME_SITE as 'lax' | 'none' | 'strict') ||
+        (process.env.NODE_ENV === 'production' ? 'none' : 'lax');
+      const cookieSecure =
+        process.env.COOKIE_SECURE !== undefined
+          ? process.env.COOKIE_SECURE === 'true'
+          : process.env.NODE_ENV === 'production';
+
       reply.setCookie(SESSION_COOKIE_NAME, sessionId, {
         path: '/',
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
         signed: true,
         maxAge: 24 * 3600, // 24 horas
       });
@@ -91,7 +100,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions =
     }
   );
 
-  // 2. POST /api/auth/logout
+  // 2. POST /api/auth/logout (Cierra sesión y limpia la cookie firmada)
   app.post(
     '/auth/logout',
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -103,11 +112,19 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions =
         }
       }
 
+      const cookieSameSite =
+        (process.env.COOKIE_SAME_SITE as 'lax' | 'none' | 'strict') ||
+        (process.env.NODE_ENV === 'production' ? 'none' : 'lax');
+      const cookieSecure =
+        process.env.COOKIE_SECURE !== undefined
+          ? process.env.COOKIE_SECURE === 'true'
+          : process.env.NODE_ENV === 'production';
+
       reply.clearCookie(SESSION_COOKIE_NAME, {
         path: '/',
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
       });
 
       return reply.code(200).send({ status: 'logged_out' });

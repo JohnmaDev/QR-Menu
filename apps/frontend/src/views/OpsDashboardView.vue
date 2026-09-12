@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
 import {
@@ -13,14 +13,20 @@ import {
   UserRole,
   FulfillmentStatus,
   PaymentStatus,
+  PaymentMethodDeclared,
 } from '@qr-menu/shared';
 import { formatCOP } from '../utils/currency.js';
 import OrderCard from '../components/ops/OrderCard.vue';
 import LoadingSpinner from '../components/common/LoadingSpinner.vue';
 import Icon from '../components/common/Icon.vue';
+import AdminTablesTab from '../components/admin/AdminTablesTab.vue';
+import AdminProductsTab from '../components/admin/AdminProductsTab.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
+
+type AdminViewTab = 'ORDERS' | 'TABLES' | 'PRODUCTS';
+const currentAdminTab = ref<AdminViewTab>('ORDERS');
 
 const orders = ref<OpsOrder[]>([]);
 const isLoading = ref(true);
@@ -32,7 +38,78 @@ const mutatingOrderId = ref<string | null>(null);
 // Filtros
 type FilterTab = FulfillmentStatus | 'ACTIVE' | 'HISTORY' | 'ALL';
 const selectedStatusFilter = ref<FilterTab>('ACTIVE');
+const previousTab = ref<FilterTab>('ACTIVE');
 const selectedTableFilter = ref<string>('ALL');
+
+// Cambiar de pestaña guardando la pestaña previa si no era historial
+function switchTab(tab: FilterTab) {
+  if (selectedStatusFilter.value !== 'HISTORY' && tab === 'HISTORY') {
+    previousTab.value = selectedStatusFilter.value;
+  } else if (tab !== 'HISTORY') {
+    previousTab.value = tab;
+  }
+  selectedStatusFilter.value = tab;
+}
+
+// Toggle para abrir o esconder el panel de Pagos Hoy / Historial
+function togglePagosHoy() {
+  if (selectedStatusFilter.value === 'HISTORY') {
+    // Si ya estamos en pagos/historial, lo escondemos y volvemos a la pestaña anterior
+    selectedStatusFilter.value = previousTab.value && previousTab.value !== 'HISTORY' ? previousTab.value : 'ACTIVE';
+  } else {
+    // Guardamos la pestaña actual antes de abrir pagos
+    previousTab.value = selectedStatusFilter.value;
+    selectedStatusFilter.value = 'HISTORY';
+    selectedHistoryDate.value = todayDateString.value;
+  }
+}
+
+// Helpers de fecha en zona horaria local (Colombia UTC-5)
+function getTodayString(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+}
+
+function getYesterdayString(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(d);
+}
+
+const todayDateString = computed(() => getTodayString());
+const yesterdayDateString = computed(() => getYesterdayString());
+const selectedHistoryDate = ref<string>(getTodayString());
+
+function getOrderDateString(o: OpsOrder): string {
+  if (o.orderDate) return o.orderDate;
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(o.createdAt));
+  } catch {
+    return '';
+  }
+}
+
+const formattedHistorySelectedDate = computed(() => {
+  if (!selectedHistoryDate.value) return '';
+  if (selectedHistoryDate.value === todayDateString.value) return 'Hoy';
+  if (selectedHistoryDate.value === yesterdayDateString.value) return 'Ayer';
+  return selectedHistoryDate.value;
+});
+
+// Cargar pedidos históricos al cambiar de fecha
+watch(selectedHistoryDate, async (newDate) => {
+  if (newDate) {
+    try {
+      const data = await fetchOpsOrdersApi({ date: newDate });
+      const currentMap = new Map(orders.value.map((o) => [o.id, o]));
+      for (const o of data.orders) {
+        currentMap.set(o.id, o);
+      }
+      orders.value = Array.from(currentMap.values());
+    } catch {
+      // ignore
+    }
+  }
+});
 
 // Modales
 const paymentModalOrder = ref<OpsOrder | null>(null);
@@ -62,10 +139,14 @@ const filteredOrders = computed(() => {
   return orders.value.filter((o) => {
     // Filtro por estado / tab
     if (selectedStatusFilter.value === 'ACTIVE') {
-      const isActive =
-        (o.fulfillmentStatus !== FulfillmentStatus.DELIVERED &&
-          o.fulfillmentStatus !== FulfillmentStatus.CANCELLED) ||
-        o.paymentStatus === PaymentStatus.UNPAID;
+      // Un pedido cancelado NUNCA está activo
+      if (o.fulfillmentStatus === FulfillmentStatus.CANCELLED) {
+        return false;
+      }
+      // Solo queda activo si está por despachar O por cobrar
+      const isPendingDispatch = o.fulfillmentStatus !== FulfillmentStatus.DELIVERED;
+      const isPendingPayment = o.paymentStatus === PaymentStatus.UNPAID;
+      const isActive = isPendingDispatch || isPendingPayment;
       if (!isActive) return false;
     } else if (selectedStatusFilter.value === 'HISTORY') {
       const isHistory =
@@ -73,6 +154,11 @@ const filteredOrders = computed(() => {
           o.paymentStatus === PaymentStatus.PAID) ||
         o.fulfillmentStatus === FulfillmentStatus.CANCELLED;
       if (!isHistory) return false;
+
+      // Filtrar por la fecha seleccionada en historial
+      if (selectedHistoryDate.value && getOrderDateString(o) !== selectedHistoryDate.value) {
+        return false;
+      }
     } else if (selectedStatusFilter.value !== 'ALL') {
       if (o.fulfillmentStatus !== selectedStatusFilter.value) {
         return false;
@@ -89,14 +175,85 @@ const filteredOrders = computed(() => {
   });
 });
 
-// Contadores rápidos para tabs
+// Pedidos de historial para la fecha seleccionada (para resumen de caja)
+const historyOrdersForSelectedDate = computed(() => {
+  return orders.value.filter((o) => {
+    const isHistory =
+      (o.fulfillmentStatus === FulfillmentStatus.DELIVERED &&
+        o.paymentStatus === PaymentStatus.PAID) ||
+      o.fulfillmentStatus === FulfillmentStatus.CANCELLED;
+    return isHistory && getOrderDateString(o) === selectedHistoryDate.value;
+  });
+});
+
+// Arqueo y ventas del día para la fecha seleccionada
+const historyDailySales = computed(() => {
+  let totalCash = 0;
+  let totalNequi = 0;
+  let totalBancolombia = 0;
+  let totalBreB = 0;
+  let totalRevenue = 0;
+  let countCompleted = 0;
+  let countCancelled = 0;
+
+  for (const o of historyOrdersForSelectedDate.value) {
+    if (o.paymentStatus === PaymentStatus.PAID && o.fulfillmentStatus === FulfillmentStatus.DELIVERED) {
+      countCompleted++;
+      totalRevenue += o.totalAmount;
+      switch (o.paymentMethodDeclared) {
+        case PaymentMethodDeclared.CASH:
+          totalCash += o.totalAmount;
+          break;
+        case PaymentMethodDeclared.NEQUI:
+          totalNequi += o.totalAmount;
+          break;
+        case PaymentMethodDeclared.BANCOLOMBIA:
+          totalBancolombia += o.totalAmount;
+          break;
+        case PaymentMethodDeclared.BRE_B:
+          totalBreB += o.totalAmount;
+          break;
+      }
+    } else if (o.fulfillmentStatus === FulfillmentStatus.CANCELLED) {
+      countCancelled++;
+    }
+  }
+
+  return {
+    totalRevenue,
+    countCompleted,
+    countCancelled,
+    totalCash,
+    totalNequi,
+    totalBancolombia,
+    totalBreB,
+  };
+});
+
+// Total de dinero cobrado de la jornada de hoy (para indicador persistente en navbar)
+const todayTotalRevenue = computed(() => {
+  const today = todayDateString.value;
+  let total = 0;
+  for (const o of orders.value) {
+    if (
+      o.fulfillmentStatus === FulfillmentStatus.DELIVERED &&
+      o.paymentStatus === PaymentStatus.PAID &&
+      getOrderDateString(o) === today
+    ) {
+      total += o.totalAmount;
+    }
+  }
+  return total;
+});
+
+// Contadores rápidos para tabs (solo quedan activos los no cancelados que estén por despachar o por cobrar)
 const countActive = computed(
   () =>
     orders.value.filter(
       (o) =>
-        (o.fulfillmentStatus !== FulfillmentStatus.DELIVERED &&
-          o.fulfillmentStatus !== FulfillmentStatus.CANCELLED) ||
-        o.paymentStatus === PaymentStatus.UNPAID
+        o.fulfillmentStatus !== FulfillmentStatus.CANCELLED &&
+        (o.fulfillmentStatus !== FulfillmentStatus.DELIVERED ||
+          o.paymentStatus === PaymentStatus.UNPAID)
     ).length
 );
 const countPending = computed(
@@ -106,13 +263,7 @@ const countPreparing = computed(
   () => orders.value.filter((o) => o.fulfillmentStatus === FulfillmentStatus.PREPARING).length
 );
 const countHistory = computed(
-  () =>
-    orders.value.filter(
-      (o) =>
-        (o.fulfillmentStatus === FulfillmentStatus.DELIVERED &&
-          o.paymentStatus === PaymentStatus.PAID) ||
-        o.fulfillmentStatus === FulfillmentStatus.CANCELLED
-    ).length
+  () => historyOrdersForSelectedDate.value.length
 );
 
 async function loadOrders(silent = false) {
@@ -284,12 +435,25 @@ onUnmounted(() => {
         <div class="logo-icon-box">
           <Icon name="beer" :size="20" color="var(--accent-gold)" />
         </div>
-        <h1 class="ops-brand">El Mora <span class="badge-brand">Caja</span></h1>
+        <h1 class="ops-brand">El Mora <span class="badge-brand">{{ authStore.isAdmin ? 'Admin' : 'Caja' }}</span></h1>
         <div class="role-badge" :class="`role-${userRole.toLowerCase()}`">
           <span class="role-dot" />
           <span>{{ userRole }}</span>
         </div>
       </div>
+
+      <!-- Pill persistente de Pagos Totales de Hoy (toggle directo para abrir / esconder resumen de pagos) -->
+      <button
+        type="button"
+        class="quick-cash-pill"
+        :class="{ 'is-open': selectedStatusFilter === 'HISTORY' }"
+        :title="selectedStatusFilter === 'HISTORY' ? 'Hacer clic para esconder menú de pagos y volver a pedidos' : 'Hacer clic para ver arqueo y desglose detallado de pagos de hoy'"
+        @click="togglePagosHoy"
+      >
+        <span class="cash-dot" :class="{ 'cash-dot-active': selectedStatusFilter === 'HISTORY' }" />
+        <span class="quick-cash-label">Pagos Hoy:</span>
+        <span class="quick-cash-amount">{{ formatCOP(todayTotalRevenue) }}</span>
+      </button>
 
       <div class="user-actions">
         <div class="user-greeting">
@@ -338,14 +502,62 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Barra de Filtros / Tabs -->
-    <nav class="filters-bar" aria-label="Filtros de pedidos">
+    <!-- Pestañas Superiores de Administración (Solo ADMIN) -->
+    <div v-if="authStore.isAdmin" class="admin-main-tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        class="admin-nav-tab"
+        :class="{ active: currentAdminTab === 'ORDERS' }"
+        @click="currentAdminTab = 'ORDERS'"
+      >
+        <Icon name="clock" :size="15" />
+        <span>Comandas & Caja</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="admin-nav-tab"
+        :class="{ active: currentAdminTab === 'TABLES' }"
+        @click="currentAdminTab = 'TABLES'"
+      >
+        <Icon name="table" :size="15" />
+        <span>Mesas & QRs</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="admin-nav-tab"
+        :class="{ active: currentAdminTab === 'PRODUCTS' }"
+        @click="currentAdminTab = 'PRODUCTS'"
+      >
+        <Icon name="beer" :size="15" />
+        <span>Menú & Catálogo</span>
+      </button>
+    </div>
+
+    <!-- Vista de Mesas & QRs -->
+    <main v-if="authStore.isAdmin && currentAdminTab === 'TABLES'" class="admin-tab-container">
+      <AdminTablesTab />
+    </main>
+
+    <!-- Vista de Menú & Catálogo -->
+    <main v-else-if="authStore.isAdmin && currentAdminTab === 'PRODUCTS'" class="admin-tab-container">
+      <AdminProductsTab />
+    </main>
+
+    <!-- Vista de Comandas & Caja (Para Caja o Admin en modo Comandas) -->
+    <div v-else class="orders-tab-container">
+      <!-- Barra de Filtros / Tabs -->
+      <nav class="filters-bar" aria-label="Filtros de pedidos">
       <div class="tabs-group">
         <button
           type="button"
           class="tab-btn tab-active"
           :class="{ active: selectedStatusFilter === 'ACTIVE' }"
-          @click="selectedStatusFilter = 'ACTIVE'"
+          @click="switchTab('ACTIVE')"
         >
           <span class="live-dot" />
           <span>Activos</span>
@@ -356,7 +568,7 @@ onUnmounted(() => {
           type="button"
           class="tab-btn tab-pending"
           :class="{ active: selectedStatusFilter === FulfillmentStatus.PENDING }"
-          @click="selectedStatusFilter = FulfillmentStatus.PENDING"
+          @click="switchTab(FulfillmentStatus.PENDING)"
         >
           <Icon name="clock" :size="14" />
           <span>Pendientes</span>
@@ -367,7 +579,7 @@ onUnmounted(() => {
           type="button"
           class="tab-btn tab-preparing"
           :class="{ active: selectedStatusFilter === FulfillmentStatus.PREPARING }"
-          @click="selectedStatusFilter = FulfillmentStatus.PREPARING"
+          @click="switchTab(FulfillmentStatus.PREPARING)"
         >
           <Icon name="fire" :size="14" />
           <span>En Preparación</span>
@@ -378,10 +590,10 @@ onUnmounted(() => {
           type="button"
           class="tab-btn tab-history"
           :class="{ active: selectedStatusFilter === 'HISTORY' }"
-          @click="selectedStatusFilter = 'HISTORY'"
+          @click="switchTab('HISTORY')"
         >
           <Icon name="check-circle" :size="14" />
-          <span>Historial</span>
+          <span>Historial & Caja</span>
           <span class="tab-counter">{{ countHistory }}</span>
         </button>
 
@@ -389,7 +601,7 @@ onUnmounted(() => {
           type="button"
           class="tab-btn"
           :class="{ active: selectedStatusFilter === 'ALL' }"
-          @click="selectedStatusFilter = 'ALL'"
+          @click="switchTab('ALL')"
         >
           <span>Todos</span>
           <span class="tab-counter">{{ orders.length }}</span>
@@ -422,15 +634,105 @@ onUnmounted(() => {
         <LoadingSpinner message="Cargando pedidos..." />
       </div>
 
-      <div v-else-if="filteredOrders.length === 0" class="empty-state">
+      <!-- Barra de control y Resumen de Caja exclusivo para la pestaña HISTORIAL -->
+      <section v-else-if="selectedStatusFilter === 'HISTORY'" class="history-dashboard-header">
+        <div class="history-controls-row">
+          <div class="history-title-box">
+            <h2 class="history-section-title">
+              <Icon name="check-circle" :size="18" color="var(--accent-gold)" />
+              Historial de Pedidos & Arqueo de Caja
+            </h2>
+            <p class="history-subtitle">Consulta de pedidos cerrados y resumen de recaudo por fecha.</p>
+          </div>
+
+          <div class="date-filter-actions">
+            <div class="date-quick-buttons">
+              <button
+                type="button"
+                class="btn-date-quick"
+                :class="{ active: selectedHistoryDate === todayDateString }"
+                @click="selectedHistoryDate = todayDateString"
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                class="btn-date-quick"
+                :class="{ active: selectedHistoryDate === yesterdayDateString }"
+                @click="selectedHistoryDate = yesterdayDateString"
+              >
+                Ayer
+              </button>
+            </div>
+
+            <div class="date-input-wrapper">
+              <Icon name="clock" :size="14" color="var(--text-muted)" />
+              <input
+                id="history-date-picker"
+                type="date"
+                v-model="selectedHistoryDate"
+                class="history-native-date"
+                :max="todayDateString"
+                title="Seleccionar fecha personalizada"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjetas de Arqueo de Caja del Día -->
+        <div class="cash-summary-panel">
+          <div class="summary-hero-card">
+            <div class="summary-hero-info">
+              <span class="summary-hero-label">PAGOS TOTALES ({{ formattedHistorySelectedDate }})</span>
+              <span class="summary-hero-amount">{{ formatCOP(historyDailySales.totalRevenue) }}</span>
+            </div>
+            <div class="summary-hero-stats">
+              <span class="stat-pill stat-completed">
+                <Icon name="check" :size="12" />
+                {{ historyDailySales.countCompleted }} pedidos pagados
+              </span>
+              <span v-if="historyDailySales.countCancelled > 0" class="stat-pill stat-cancelled">
+                <Icon name="alert" :size="12" />
+                {{ historyDailySales.countCancelled }} cancelados
+              </span>
+            </div>
+          </div>
+
+          <div class="methods-grid">
+            <div class="method-card">
+              <span class="method-title">💵 Efectivo</span>
+              <span class="method-sum">{{ formatCOP(historyDailySales.totalCash) }}</span>
+            </div>
+            <div class="method-card">
+              <span class="method-title">📱 Nequi</span>
+              <span class="method-sum">{{ formatCOP(historyDailySales.totalNequi) }}</span>
+            </div>
+            <div class="method-card">
+              <span class="method-title">🏦 Bancolombia</span>
+              <span class="method-sum">{{ formatCOP(historyDailySales.totalBancolombia) }}</span>
+            </div>
+            <div class="method-card">
+              <span class="method-title">⚡ Bre-B</span>
+              <span class="method-sum">{{ formatCOP(historyDailySales.totalBreB) }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div v-if="!isLoading && filteredOrders.length === 0" class="empty-state">
         <div class="empty-icon-box">
           <Icon name="note" :size="36" color="var(--text-muted)" />
         </div>
         <h2>No hay pedidos en esta sección</h2>
-        <p>Los nuevos pedidos realizados por clientes aparecerán aquí automáticamente en tiempo real.</p>
+        <p v-if="selectedStatusFilter === 'HISTORY'">
+          No se encontraron pedidos cerrados ni cancelados para la fecha seleccionada ({{ formattedHistorySelectedDate }}).
+        </p>
+        <p v-else>
+          Los nuevos pedidos realizados por clientes aparecerán aquí automáticamente en tiempo real.
+        </p>
       </div>
 
-      <div v-else class="orders-grid">
+      <div v-else-if="!isLoading" class="orders-grid">
         <OrderCard
           v-for="order in filteredOrders"
           :key="order.id"
@@ -547,6 +849,7 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    </div> <!-- end orders-tab-container -->
   </div>
 </template>
 
@@ -557,6 +860,46 @@ onUnmounted(() => {
   color: var(--text-primary);
   display: flex;
   flex-direction: column;
+}
+
+.admin-main-tabs {
+  display: flex;
+  background: #151c28;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 24px;
+  gap: 8px;
+}
+
+.admin-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-nav-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-nav-tab.active {
+  color: var(--accent-gold);
+  border-bottom-color: var(--accent-gold);
+}
+
+.admin-tab-container {
+  padding: 24px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .ops-navbar {
@@ -1073,4 +1416,293 @@ onUnmounted(() => {
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
+
+/* ==============================================================================
+   QUICK CASH PILL EN NAVBAR (ACCESO DIRECTO A PAGOS TOTALES)
+============================================================================== */
+.quick-cash-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-cash-pill:hover {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: var(--accent-gold);
+  transform: translateY(-1px);
+}
+
+.quick-cash-pill.is-open {
+  background: rgba(245, 158, 11, 0.24);
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.35);
+}
+
+.quick-cash-pill .cash-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.quick-cash-pill .cash-dot.cash-dot-active {
+  background: var(--accent-gold);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.9);
+}
+
+.quick-cash-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quick-cash-amount {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent-gold);
+}
+
+@media (max-width: 768px) {
+  .quick-cash-pill {
+    padding: 4px 10px;
+    gap: 6px;
+  }
+  .quick-cash-label {
+    display: none;
+  }
+}
+
+/* ==============================================================================
+   HISTORIAL & ARQUEO DE CAJA DIARIO
+============================================================================== */
+.history-dashboard-header {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: var(--bg-card-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+}
+
+.history-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.history-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.date-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.date-quick-buttons {
+  display: flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.btn-date-quick {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: calc(var(--radius-md) - 2px);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-date-quick:hover {
+  color: var(--text-primary);
+}
+
+.btn-date-quick.active {
+  background: var(--accent-gold);
+  color: #0b0e14;
+  box-shadow: var(--shadow-sm);
+}
+
+.date-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+}
+
+.history-native-date {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.history-native-date::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+/* Panel de arqueo de caja */
+.cash-summary-panel {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .cash-summary-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary-hero-card {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.05) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.summary-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-hero-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.summary-hero-amount {
+  font-family: var(--font-heading);
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.summary-hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.stat-pill.stat-completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.stat-pill.stat-cancelled {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--accent-red);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.methods-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.method-card {
+  background: var(--bg-card-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.method-card:hover {
+  border-color: var(--border-highlight);
+  transform: translateY(-2px);
+}
+
+.method-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.method-sum {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
 </style>

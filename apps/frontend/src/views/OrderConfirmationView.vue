@@ -145,7 +145,7 @@ onUnmounted(() => {
           <Icon name="check" :size="14" />
           <span>El Mora • ¡Pedido Confirmado!</span>
         </div>
-        <h1 class="order-title">Pedido #{{ orderStatus.orderNumber }}</h1>
+        <h1 class="order-title">Pedido #{{ orderStatus.dailyOrderNumber ? String(orderStatus.dailyOrderNumber).padStart(2, '0') : orderStatus.orderNumber }}</h1>
         <div class="code-pill-wrap">
           <span class="code-prefix">CÓDIGO:</span>
           <span class="code-pill" aria-label="Código de seguimiento">
@@ -323,6 +323,16 @@ onUnmounted(() => {
   font-weight: 800;
   color: var(--accent-gold);
   letter-spacing: 0.06em;
+}
+
+.daily-turn-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-amber);
+  background: rgba(230, 126, 34, 0.12);
+  border: 1px solid rgba(230, 126, 34, 0.25);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
 }
 
 .status-tracker {

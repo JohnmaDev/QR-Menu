@@ -98,7 +98,7 @@ npm run dev:frontend
 | **Mesa 2 (QR)** | [http://localhost:5173/m/t_m2_4p8x1y](http://localhost:5173/m/t_m2_4p8x1y) | Menú y pedidos de la Mesa 2 |
 | **Barra 1 (QR)** | [http://localhost:5173/m/t_b1_2l4n6p](http://localhost:5173/m/t_b1_2l4n6p) | Menú y pedidos de Barra 1 |
 | **Login Personal** | [http://localhost:5173/login](http://localhost:5173/login) | Acceso para personal autorizado |
-| **Panel Operaciones** | [http://localhost:5173/ops](http://localhost:5173/ops) | KDS de Cocina y Cobro en Caja |
+| **Panel Operaciones** | [http://localhost:5173/ops](http://localhost:5173/ops) | Comandas de pedidos, Mesas/QRs y Catálogo |
 | **Backend API** | [http://localhost:3000](http://localhost:3000) | Servidor API REST Fastify |
 | **Health Check** | [http://localhost:3000/healthz](http://localhost:3000/healthz) | Estado de salud del backend |
 
@@ -110,9 +110,8 @@ npm run dev:frontend
 
 | Rol | Usuario | Contraseña | Permisos Operativos |
 | :--- | :--- | :--- | :--- |
-| **ADMIN** | `admin` | `Admin123!` | Acceso completo (KDS, Cobro, Auditoría) |
-| **CAJERO (CASHIER)** | `caja` | `Admin123!` | Visualizar comandas y confirmar pagos (`UNPAID` → `PAID`) |
-| **COCINERO (KITCHEN)** | `cocina` | `Admin123!` | Avanzar preparación (`PENDING` → `PREPARING` → `DELIVERED`) |
+| **ADMIN** | `admin` | `Admin123!` | Acceso completo: Gestión de Mesas y QRs con logo, Catálogo de Productos y Precios, Comandas operativas y Cobro en Caja |
+| **CAJERO (CASHIER)** | `caja` | `Admin123!` | Operativa de pedidos: Visualizar comandas, marcar preparación y confirmar pagos (`UNPAID` → `PAID`) |
 
 ---
 

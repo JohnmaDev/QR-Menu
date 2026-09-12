@@ -16,7 +16,6 @@ describe('Frontend Auth Store (Pinia)', () => {
     expect(auth.isAuthenticated).toBe(false);
     expect(auth.isAdmin).toBe(false);
     expect(auth.isCashier).toBe(false);
-    expect(auth.isKitchen).toBe(false);
     expect(auth.role).toBeNull();
     expect(auth.error).toBeNull();
   });
@@ -26,19 +25,18 @@ describe('Frontend Auth Store (Pinia)', () => {
     vi.spyOn(api, 'loginApi').mockResolvedValue({
       user: {
         id: '11111111-1111-1111-1111-111111111111',
-        username: 'cocina_master',
-        role: UserRole.KITCHEN,
+        username: 'caja_principal',
+        role: UserRole.CASHIER,
       },
     });
 
-    await auth.login('cocina_master', 'Pass123!');
+    await auth.login('caja_principal', 'Pass123!');
 
     expect(auth.isAuthenticated).toBe(true);
-    expect(auth.user?.username).toBe('cocina_master');
-    expect(auth.role).toBe(UserRole.KITCHEN);
-    expect(auth.isKitchen).toBe(true);
+    expect(auth.user?.username).toBe('caja_principal');
+    expect(auth.role).toBe(UserRole.CASHIER);
+    expect(auth.isCashier).toBe(true);
     expect(auth.isAdmin).toBe(false);
-    expect(auth.isCashier).toBe(false);
     expect(auth.error).toBeNull();
   });
 

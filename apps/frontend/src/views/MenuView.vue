@@ -7,7 +7,7 @@ import { useCartStore } from '../stores/cart.js';
 import CategoryNav from '../components/menu/CategoryNav.vue';
 import ProductCard from '../components/menu/ProductCard.vue';
 import BottomCartBar from '../components/cart/BottomCartBar.vue';
-import LoadingSpinner from '../components/common/LoadingSpinner.vue';
+import MenuSkeleton from '../components/menu/MenuSkeleton.vue';
 import ErrorMessage from '../components/common/ErrorMessage.vue';
 import Icon from '../components/common/Icon.vue';
 
@@ -114,10 +114,8 @@ onMounted(() => {
       </p>
     </header>
 
-    <!-- Estado de Carga -->
-    <div v-if="isLoading" class="loading-container">
-      <LoadingSpinner message="Cargando menú frío..." />
-    </div>
+    <!-- Estado de Carga Instantánea con Skeleton -->
+    <MenuSkeleton v-if="isLoading" />
 
     <!-- Estado de Error -->
     <div v-else-if="errorMessage" class="error-wrapper">

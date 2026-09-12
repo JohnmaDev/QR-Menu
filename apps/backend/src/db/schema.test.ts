@@ -11,6 +11,7 @@ import {
   orderItems,
   auditLogs,
   sessions,
+  dailyOrderSequences,
   userRoleEnum,
   fulfillmentStatusEnum,
   paymentStatusEnum,
@@ -28,7 +29,6 @@ describe('FASE 1: Database Schema Integrity & Migration Tests', () => {
     expect(userRoleEnum.enumValues).toEqual([
       UserRole.ADMIN,
       UserRole.CASHIER,
-      UserRole.KITCHEN,
     ]);
     expect(fulfillmentStatusEnum.enumValues).toEqual([
       FulfillmentStatus.PENDING,
@@ -100,6 +100,8 @@ describe('FASE 1: Database Schema Integrity & Migration Tests', () => {
     expect(cols).toHaveProperty('id');
     expect(cols).toHaveProperty('orderNumber');
     expect(cols).toHaveProperty('publicCode');
+    expect(cols).toHaveProperty('orderDate');
+    expect(cols).toHaveProperty('dailyOrderNumber');
     expect(cols).toHaveProperty('tableId');
     expect(cols).toHaveProperty('fulfillmentStatus');
     expect(cols).toHaveProperty('paymentStatus');
@@ -109,8 +111,13 @@ describe('FASE 1: Database Schema Integrity & Migration Tests', () => {
     expect(cols).toHaveProperty('totalAmount');
     expect(cols).toHaveProperty('customerName');
 
-    expect(cols.publicCode.isUnique).toBe(true);
     expect(cols.idempotencyKey.isUnique).toBe(true);
+  });
+
+  it('daily_order_sequences table tracks atomic per-day sequence numbers', () => {
+    const cols = getTableColumns(dailyOrderSequences);
+    expect(cols).toHaveProperty('orderDate');
+    expect(cols).toHaveProperty('lastNumber');
   });
 
   it('order_items table includes immutable historical snapshots', () => {

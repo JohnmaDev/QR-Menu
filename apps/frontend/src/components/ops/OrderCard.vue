@@ -23,17 +23,17 @@ const emit = defineEmits<{
   (e: 'cancel', order: OpsOrder): void;
 }>();
 
-// Permisos según rol (CASHIER, ADMIN y KITCHEN pueden gestionar el ciclo completo en caja)
+// Permisos según rol (CASHIER y ADMIN gestionan el ciclo operativo completo)
 const canPrepare = computed(() => {
   return (
-    (props.userRole === UserRole.ADMIN || props.userRole === UserRole.KITCHEN || props.userRole === UserRole.CASHIER) &&
+    (props.userRole === UserRole.ADMIN || props.userRole === UserRole.CASHIER) &&
     props.order.fulfillmentStatus === FulfillmentStatus.PENDING
   );
 });
 
 const canDeliver = computed(() => {
   return (
-    (props.userRole === UserRole.ADMIN || props.userRole === UserRole.KITCHEN || props.userRole === UserRole.CASHIER) &&
+    (props.userRole === UserRole.ADMIN || props.userRole === UserRole.CASHIER) &&
     props.order.fulfillmentStatus === FulfillmentStatus.PREPARING
   );
 });
@@ -48,7 +48,7 @@ const canConfirmPayment = computed(() => {
 
 const canCancel = computed(() => {
   return (
-    (props.userRole === UserRole.ADMIN || props.userRole === UserRole.KITCHEN || props.userRole === UserRole.CASHIER) &&
+    (props.userRole === UserRole.ADMIN || props.userRole === UserRole.CASHIER) &&
     props.order.fulfillmentStatus !== FulfillmentStatus.DELIVERED &&
     props.order.fulfillmentStatus !== FulfillmentStatus.CANCELLED
   );
@@ -104,7 +104,12 @@ const paymentMethodLabel = computed(() => {
           <Icon name="user" :size="12" />
           {{ props.order.customerName }}
         </span>
-        <span class="order-code">#{{ props.order.orderNumber }} ({{ props.order.publicCode }})</span>
+        <span class="order-code-badge">
+          <span class="code-primary">{{ props.order.publicCode }}</span>
+          <span class="code-turn" title="Consecutivo del día">
+            #{{ props.order.dailyOrderNumber ? String(props.order.dailyOrderNumber).padStart(2, '0') : props.order.orderNumber }}
+          </span>
+        </span>
       </div>
       <div class="time-info">
         <Icon name="clock" :size="13" color="var(--text-muted)" />
@@ -306,11 +311,31 @@ const paymentMethodLabel = computed(() => {
   border-radius: var(--radius-md);
 }
 
-.order-code {
+.order-code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-md);
+  padding: 3px 8px;
+}
+
+.code-primary {
   font-family: var(--font-heading);
-  font-size: 0.88rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 800;
   color: var(--accent-gold);
+  letter-spacing: 0.04em;
+}
+
+.code-turn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
 }
 
 .time-info {

@@ -54,21 +54,26 @@ export async function verifyCsrfProtection(
     return;
   }
 
-  const expectedOrigin = (process.env.CORS_ORIGIN || 'http://localhost:5173').replace(/\/+$/, '');
+  const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  const allowedOrigins = rawCorsOrigin
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
   const origin = request.headers['origin'];
   const referer = request.headers['referer'];
 
   // 1. Validar encabezado Origin si está presente
   if (origin) {
     const normalizedOrigin = String(origin).replace(/\/+$/, '');
-    if (normalizedOrigin !== expectedOrigin) {
+    if (!allowedOrigins.includes(normalizedOrigin)) {
       throw new CsrfError(`Origen no autorizado: '${origin}'`);
     }
   } else if (referer) {
     // 2. Si Origin está ausente, validar origen extraído del Referer
     try {
       const refererOrigin = new URL(String(referer)).origin.replace(/\/+$/, '');
-      if (refererOrigin !== expectedOrigin) {
+      if (!allowedOrigins.includes(refererOrigin)) {
         throw new CsrfError(`Referer no autorizado: '${referer}'`);
       }
     } catch {

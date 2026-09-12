@@ -12,6 +12,7 @@ import {
   pgEnum,
   index,
   check,
+  date,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import {
@@ -28,7 +29,6 @@ import {
 export const userRoleEnum = pgEnum('user_role', [
   UserRole.ADMIN,
   UserRole.CASHIER,
-  UserRole.KITCHEN,
 ]);
 
 export const fulfillmentStatusEnum = pgEnum('fulfillment_status', [
@@ -130,7 +130,9 @@ export const orders = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     orderNumber: serial('order_number').notNull(),
-    publicCode: varchar('public_code', { length: 10 }).notNull().unique(),
+    publicCode: varchar('public_code', { length: 10 }).notNull(),
+    orderDate: date('order_date').notNull().default(sql`CURRENT_DATE`),
+    dailyOrderNumber: integer('daily_order_number').notNull().default(1),
     tableId: integer('table_id')
       .notNull()
       .references(() => tables.id, { onDelete: 'restrict' }),
@@ -157,9 +159,20 @@ export const orders = pgTable(
     ),
     tableIdx: index('idx_orders_table').on(table.tableId, table.fulfillmentStatus),
     idempotencyIdx: index('idx_orders_idempotency').on(table.idempotencyKey),
+    dateCodeIdx: index('idx_orders_date_code').on(table.orderDate, table.publicCode),
+    dateIdx: index('idx_orders_date').on(table.orderDate),
     totalCheck: check('chk_orders_total_non_negative', sql`${table.totalAmount} >= 0`),
   })
 );
+
+// ==============================================================================
+// 5.1 DAILY ORDER SEQUENCES (SECUENCIAS ATÓMICAS POR DÍA)
+// ==============================================================================
+
+export const dailyOrderSequences = pgTable('daily_order_sequences', {
+  orderDate: date('order_date').primaryKey(),
+  lastNumber: integer('last_number').notNull().default(0),
+});
 
 // ==============================================================================
 // 6. ORDER ITEMS TABLE (SNAPSHOT HISTÓRICO INMUTABLE)

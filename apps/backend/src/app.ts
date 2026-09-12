@@ -6,6 +6,7 @@ import rateLimit from '@fastify/rate-limit';
 import { publicRoutes } from './routes/public.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { opsRoutes } from './routes/ops.routes.js';
+import { adminRoutes } from './routes/admin.routes.js';
 import { AppError } from './errors.js';
 import { ApiErrorCode } from '@qr-menu/shared';
 
@@ -42,8 +43,14 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   });
 
   // Strict CORS
+  const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  const allowedOrigins = rawCorsOrigin
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
   app.register(cors, {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'X-Idempotency-Key', 'If-None-Match', 'X-Requested-With'],
@@ -82,6 +89,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   app.register(publicRoutes, { prefix: '/api', db: opts.db });
   app.register(authRoutes, { prefix: '/api', db: opts.db });
   app.register(opsRoutes, { prefix: '/api/ops', db: opts.db });
+  app.register(adminRoutes, { prefix: '/api/admin', db: opts.db });
 
   // Standardized Centralized Error Handler
   app.setErrorHandler((error: FastifyError | AppError | Error, request, reply) => {

@@ -27,7 +27,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
   let client: Awaited<ReturnType<typeof createTestDb>>['client'];
 
   // IDs de prueba
-  let kitchenUserId: string;
+  let cashierUserId: string;
 
   beforeEach(async () => {
     const testSetup = await createTestDb();
@@ -54,12 +54,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
           role: UserRole.CASHIER,
           isActive: true,
         },
-        {
-          username: 'kitchen_user',
-          passwordHash,
-          role: UserRole.KITCHEN,
-          isActive: true,
-        },
+
         {
           username: 'inactive_user',
           passwordHash,
@@ -69,7 +64,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
       ])
       .returning();
 
-    kitchenUserId = insertedUsers[2].id;
+    cashierUserId = insertedUsers[1].id;
 
     // Mesas y catálogo base
     await testDb.insert(tables).values([
@@ -335,36 +330,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
       expect(payRes.statusCode).toBe(200);
     });
 
-    it('KITCHEN puede ver órdenes y actualizar preparación, pero recibe 403 al intentar cobrar', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
-      const order = await createTestOrder(1, FulfillmentStatus.PENDING, PaymentStatus.UNPAID);
 
-      // 1. Cambiar a PREPARING -> Permitido
-      const prepRes = await app.inject({
-        method: 'PATCH',
-        url: `/api/ops/orders/${order.id}/fulfillment`,
-        headers: {
-          cookie: cookieHeader!,
-          'content-type': 'application/json',
-        },
-        payload: { status: FulfillmentStatus.PREPARING },
-      });
-      expect(prepRes.statusCode).toBe(200);
-
-      // 2. Intentar confirmar pago -> Prohibido (403)
-      const payRes = await app.inject({
-        method: 'PATCH',
-        url: `/api/ops/orders/${order.id}/payment`,
-        headers: {
-          cookie: cookieHeader!,
-          'content-type': 'application/json',
-        },
-        payload: { paymentStatus: PaymentStatus.PAID },
-      });
-      expect(payRes.statusCode).toBe(403);
-      const json = JSON.parse(payRes.body);
-      expect(json.error.code).toBe('FORBIDDEN');
-    });
 
     it('CASHIER puede ver órdenes, preparar comanda y cobrar en caja (flujo unificado)', async () => {
       const { cookieHeader } = await loginAs('cashier_user');
@@ -417,6 +383,33 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
       expect(cancelRes.statusCode).toBe(200);
       expect(JSON.parse(cancelRes.body).fulfillmentStatus).toBe(FulfillmentStatus.CANCELLED);
     });
+
+    it('permite filtrar órdenes por fecha con el query param date (YYYY-MM-DD)', async () => {
+      const { cookieHeader } = await loginAs('admin_user');
+      const order = await createTestOrder(1, FulfillmentStatus.PENDING, PaymentStatus.UNPAID);
+
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+
+      // Consulta con fecha de hoy
+      const resToday = await app.inject({
+        method: 'GET',
+        url: `/api/ops/orders?date=${todayStr}`,
+        headers: { cookie: cookieHeader! },
+      });
+      expect(resToday.statusCode).toBe(200);
+      const jsonToday = JSON.parse(resToday.body);
+      expect(jsonToday.orders.some((o: { id: string }) => o.id === order.id)).toBe(true);
+
+      // Consulta con fecha de ayer (no debe incluir la orden creada hoy)
+      const resYesterday = await app.inject({
+        method: 'GET',
+        url: '/api/ops/orders?date=2020-01-01',
+        headers: { cookie: cookieHeader! },
+      });
+      expect(resYesterday.statusCode).toBe(200);
+      const jsonYesterday = JSON.parse(resYesterday.body);
+      expect(jsonYesterday.orders.some((o: { id: string }) => o.id === order.id)).toBe(false);
+    });
   });
 
   // ============================================================================
@@ -424,7 +417,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
   // ============================================================================
   describe('Máquina de Estados de Pedidos y Transiciones', () => {
     it('flujo completo válido: PENDING -> PREPARING -> DELIVERED', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.PENDING);
 
       // 1. PENDING -> PREPARING
@@ -449,7 +442,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
     });
 
     it('rechaza con 409 saltarse PREPARING (PENDING -> DELIVERED)', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.PENDING);
 
       const res = await app.inject({
@@ -463,7 +456,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
     });
 
     it('rechaza con 409 modificar un pedido en estado terminal DELIVERED', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.DELIVERED);
 
       const res = await app.inject({
@@ -514,8 +507,8 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
   // 4. TESTS DE CONCURRENCIA REAL
   // ============================================================================
   describe('Concurrencia Operativa (KDS & Caja)', () => {
-    it('dos cocineros intentan tomar el mismo pedido PENDING simultáneamente: exactamente uno gana (200) y el otro recibe 409', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+    it('dos operadores intentan tomar el mismo pedido PENDING simultáneamente: exactamente uno gana (200) y el otro recibe 409', async () => {
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.PENDING);
 
       // Lanzar 2 peticiones paralelas al mismo instante
@@ -571,7 +564,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
   // ============================================================================
   describe('Auditoría y Seguridad', () => {
     it('las mutaciones sensibles generan registros detallados en audit_logs', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.PENDING);
 
       // Ejecutar cambio de estado a PREPARING
@@ -591,7 +584,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
       expect(logs.length).toBeGreaterThanOrEqual(1);
       const fulfillmentLog = logs.find((l) => l.action === 'ORDER_FULFILLMENT_UPDATED');
       expect(fulfillmentLog).toBeDefined();
-      expect(fulfillmentLog?.userId).toBe(kitchenUserId);
+      expect(fulfillmentLog?.userId).toBe(cashierUserId);
       expect(fulfillmentLog?.entityType).toBe('ORDER');
       expect(fulfillmentLog?.metadata).toMatchObject({
         publicCode: order.publicCode,
@@ -605,7 +598,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
     });
 
     it('protección CSRF rechaza mutaciones con Origin sospechoso o sin application/json', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.PENDING);
 
       // Petición con Origin malicioso externo
@@ -625,7 +618,7 @@ describe('FASE 4: Backend Auth, RBAC, Operations & Audit Comprehensive Tests', (
     });
 
     it('protección CSRF acepta Referer válido si Origin está ausente, y rechaza Referer sospechoso (SEC-06)', async () => {
-      const { cookieHeader } = await loginAs('kitchen_user');
+      const { cookieHeader } = await loginAs('cashier_user');
       const order = await createTestOrder(1, FulfillmentStatus.PENDING);
 
       // 1. Referer sospechoso -> 403

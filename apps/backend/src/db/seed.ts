@@ -35,12 +35,6 @@ export async function runSeed(db = getDb()) {
       role: 'CASHIER',
       isActive: true,
     },
-    {
-      username: 'cocina',
-      passwordHash: defaultPasswordHash,
-      role: 'KITCHEN',
-      isActive: true,
-    },
   ]).onConflictDoNothing();
 
   // Inserción de mesas con tokens criptográficos unguessable

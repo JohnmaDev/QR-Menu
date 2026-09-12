@@ -47,8 +47,8 @@ describe('OpsDashboardView Component', () => {
     const auth = useAuthStore();
     auth.user = {
       id: 'user_1',
-      username: 'cocinero_juan',
-      role: UserRole.KITCHEN,
+      username: 'cajero_juan',
+      role: UserRole.CASHIER,
     };
   });
 
@@ -62,8 +62,8 @@ describe('OpsDashboardView Component', () => {
 
     expect(wrapper.text()).toContain('El Mora');
     expect(wrapper.text()).toContain('Caja');
-    expect(wrapper.text()).toContain('cocinero_juan');
-    expect(wrapper.text()).toContain('KITCHEN');
+    expect(wrapper.text()).toContain('cajero_juan');
+    expect(wrapper.text()).toContain('CASHIER');
     expect(wrapper.find('.order-card').exists()).toBe(true);
     expect(wrapper.text()).toContain('ORD-ABC123');
   });
@@ -147,4 +147,102 @@ describe('OpsDashboardView Component', () => {
 
     expect(confirmSpy).toHaveBeenCalledWith(sampleOrder.id);
   });
+
+  it('removes cancelled orders from active view and does not count them as active', async () => {
+    const cancelledOrder = {
+      ...sampleOrder,
+      id: '22222222-3333-4444-5555-666666666666',
+      orderNumber: 102,
+      publicCode: 'ORD-CANCEL99',
+      fulfillmentStatus: FulfillmentStatus.CANCELLED,
+      paymentStatus: PaymentStatus.UNPAID,
+    };
+
+    vi.spyOn(api, 'fetchOpsOrdersApi').mockResolvedValue({
+      orders: [cancelledOrder],
+    });
+
+    const wrapper = mount(OpsDashboardView);
+    await flushPromises();
+
+    // En la vista de activos no debe aparecer la tarjeta del pedido cancelado
+    expect(wrapper.find('.order-card').exists()).toBe(false);
+
+    // El contador de activos debe ser 0
+    const activeCounter = wrapper.find('.tab-active .tab-counter');
+    expect(activeCounter.text()).toBe('0');
+
+    // Cambiar a la pestaña de Historial
+    const tabHistory = wrapper.find('.tab-history');
+    await tabHistory.trigger('click');
+    await flushPromises();
+
+    // En historial sí debe estar presente
+    expect(wrapper.find('.order-card').exists()).toBe(true);
+    expect(wrapper.text()).toContain('ORD-CANCEL99');
+  });
+
+  it('toggles payments menu open and closed with quick-cash-pill and returns to previous tab', async () => {
+    vi.spyOn(api, 'fetchOpsOrdersApi').mockResolvedValue({
+      orders: [sampleOrder],
+    });
+
+    const wrapper = mount(OpsDashboardView, {
+      global: {
+        stubs: {
+          Icon: true,
+          LoadingSpinner: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    // Inicialmente estamos en la pestaña de Activos
+    expect(wrapper.find('.tab-active').classes()).toContain('active');
+    expect(wrapper.find('.history-dashboard-header').exists()).toBe(false);
+
+    const quickCashPill = wrapper.find('.quick-cash-pill');
+    expect(quickCashPill.exists()).toBe(true);
+    expect(quickCashPill.classes()).not.toContain('is-open');
+    expect(quickCashPill.text()).toContain('Pagos Hoy:');
+
+    // Primer clic en Pagos Hoy: despliega el menú de pagos e historial
+    await quickCashPill.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.history-dashboard-header').exists()).toBe(true);
+    expect(wrapper.find('.tab-history').classes()).toContain('active');
+    expect(quickCashPill.classes()).toContain('is-open');
+
+    // Segundo clic en Pagos Hoy: vuelve a esconder el menú de pagos y regresa a Activos
+    await quickCashPill.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.history-dashboard-header').exists()).toBe(false);
+    expect(wrapper.find('.tab-active').classes()).toContain('active');
+    expect(quickCashPill.classes()).not.toContain('is-open');
+
+    // Si estábamos en otra pestaña (por ejemplo En Preparación) y abrimos pagos,
+    // al volver a hacer clic en Pagos Hoy debe regresar a Preparación
+    const tabPreparing = wrapper.find('.tab-preparing');
+    await tabPreparing.trigger('click');
+    await flushPromises();
+    expect(tabPreparing.classes()).toContain('active');
+
+    // Abrir pagos desde el botón superior
+    await quickCashPill.trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.history-dashboard-header').exists()).toBe(true);
+    expect(quickCashPill.classes()).toContain('is-open');
+
+    // Volver a hacer clic en Pagos Hoy: lo esconde y regresa a Preparación
+    await quickCashPill.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.history-dashboard-header').exists()).toBe(false);
+    expect(wrapper.find('.tab-preparing').classes()).toContain('active');
+    expect(quickCashPill.classes()).not.toContain('is-open');
+  });
 });
+

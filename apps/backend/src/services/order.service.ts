@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, desc, sql } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
 import {
   tables,
@@ -21,9 +21,20 @@ import {
   OrderNotFoundError,
 } from '../errors.js';
 
-// Generador de código público no predecible (ORD-XXXXXX)
+// Obtiene la fecha actual en la zona horaria del servicio (Colombia UTC-5) en formato YYYY-MM-DD
+export function getLocalTodayDateString(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(d);
+}
+
+// Generador de código público conciso y humano para bar/restaurante: M{mesa}-{consecutivo_dia} (ej. M3-08)
+export function formatPublicOrderCode(tableNumber: number, dailyNumber: number): string {
+  const paddedDaily = String(dailyNumber).padStart(2, '0');
+  return `M${tableNumber}-${paddedDaily}`;
+}
+
+// Generador de fallback si no hay número de mesa
 export function generatePublicOrderCode(): string {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Evita 0, 1, I, O para claridad humana
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
   let result = 'ORD-';
   const randomBytes = crypto.randomBytes(6);
   for (let i = 0; i < 6; i++) {
@@ -70,6 +81,8 @@ export async function createOrder(
       id: orders.id,
       publicCode: orders.publicCode,
       orderNumber: orders.orderNumber,
+      dailyOrderNumber: orders.dailyOrderNumber,
+      orderDate: orders.orderDate,
       tableId: orders.tableId,
       customerName: orders.customerName,
       requestHash: orders.requestHash,
@@ -96,6 +109,8 @@ export async function createOrder(
     return {
       orderCode: existing.publicCode,
       orderNumber: existing.orderNumber,
+      dailyOrderNumber: existing.dailyOrderNumber,
+      orderDate: existing.orderDate,
       tableName: tableRecord[0]?.name || 'Mesa',
       customerName: existing.customerName || undefined,
       totalAmount: Number(existing.totalAmount),
@@ -112,6 +127,7 @@ export async function createOrder(
       const matchingTables = await tx
         .select({
           id: tables.id,
+          number: tables.number,
           name: tables.name,
           isActive: tables.isActive,
         })
@@ -170,13 +186,34 @@ export async function createOrder(
       });
 
       const totalAmountStr = (totalCents / 100).toFixed(2);
-      const publicCode = generatePublicOrderCode();
+      const todayStr = getLocalTodayDateString();
+
+      // Incrementar atómicamente la secuencia del día
+      const seqResult = await tx.execute(
+        sql`INSERT INTO daily_order_sequences (order_date, last_number)
+            VALUES (${todayStr}::date, 1)
+            ON CONFLICT (order_date)
+            DO UPDATE SET last_number = daily_order_sequences.last_number + 1
+            RETURNING last_number;`
+      );
+
+      const seqRows = (Array.isArray(seqResult)
+        ? seqResult
+        : (seqResult as unknown as { rows?: Record<string, unknown>[] })?.rows || []) as Record<string, unknown>[];
+      const rawDailyNumber = seqRows[0]?.last_number;
+      const dailyNumber = typeof rawDailyNumber === 'number'
+        ? rawDailyNumber
+        : parseInt(String(rawDailyNumber || 1), 10);
+
+      const publicCode = formatPublicOrderCode(table.number, dailyNumber);
 
       // e. Insertar cabecera de orden
       const insertedOrders = await tx
         .insert(orders)
         .values({
           publicCode,
+          orderDate: todayStr,
+          dailyOrderNumber: dailyNumber,
           tableId: table.id,
           customerName: input.customerName?.trim() || null,
           paymentMethod,
@@ -189,6 +226,8 @@ export async function createOrder(
           id: orders.id,
           publicCode: orders.publicCode,
           orderNumber: orders.orderNumber,
+          dailyOrderNumber: orders.dailyOrderNumber,
+          orderDate: orders.orderDate,
           customerName: orders.customerName,
           fulfillmentStatus: orders.fulfillmentStatus,
           paymentStatus: orders.paymentStatus,
@@ -213,6 +252,8 @@ export async function createOrder(
       return {
         orderCode: createdOrder.publicCode,
         orderNumber: createdOrder.orderNumber,
+        dailyOrderNumber: createdOrder.dailyOrderNumber,
+        orderDate: createdOrder.orderDate,
         tableName: table.name,
         customerName: createdOrder.customerName || undefined,
         totalAmount: Number(createdOrder.totalAmount),
@@ -233,6 +274,8 @@ export async function createOrder(
         .select({
           publicCode: orders.publicCode,
           orderNumber: orders.orderNumber,
+          dailyOrderNumber: orders.dailyOrderNumber,
+          orderDate: orders.orderDate,
           tableId: orders.tableId,
           customerName: orders.customerName,
           requestHash: orders.requestHash,
@@ -257,6 +300,8 @@ export async function createOrder(
         return {
           orderCode: raceOrder[0].publicCode,
           orderNumber: raceOrder[0].orderNumber,
+          dailyOrderNumber: raceOrder[0].dailyOrderNumber,
+          orderDate: raceOrder[0].orderDate,
           tableName: tableRecord[0]?.name || 'Mesa',
           customerName: raceOrder[0].customerName || undefined,
           totalAmount: Number(raceOrder[0].totalAmount),
@@ -278,6 +323,8 @@ export async function getOrderStatus(
     .select({
       orderCode: orders.publicCode,
       orderNumber: orders.orderNumber,
+      dailyOrderNumber: orders.dailyOrderNumber,
+      orderDate: orders.orderDate,
       tableName: tables.name,
       customerName: orders.customerName,
       fulfillmentStatus: orders.fulfillmentStatus,
@@ -287,7 +334,9 @@ export async function getOrderStatus(
     })
     .from(orders)
     .innerJoin(tables, eq(orders.tableId, tables.id))
-    .where(eq(orders.publicCode, publicCode.trim()));
+    .where(eq(orders.publicCode, publicCode.trim()))
+    .orderBy(desc(orders.createdAt))
+    .limit(1);
 
   if (result.length === 0) {
     throw new OrderNotFoundError(`No se encontró ningún pedido con el código '${publicCode}'`);
@@ -297,6 +346,8 @@ export async function getOrderStatus(
   return {
     orderCode: order.orderCode,
     orderNumber: order.orderNumber,
+    dailyOrderNumber: order.dailyOrderNumber,
+    orderDate: order.orderDate,
     tableName: order.tableName,
     customerName: order.customerName || undefined,
     fulfillmentStatus: order.fulfillmentStatus,
@@ -305,3 +356,4 @@ export async function getOrderStatus(
     createdAt: order.createdAt.toISOString(),
   };
 }
+

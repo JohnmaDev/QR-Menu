@@ -10,6 +10,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@qr-menu/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+    },
+  },
   envDir: path.resolve(__dirname, '../..'),
   server: {
     port: 5173,

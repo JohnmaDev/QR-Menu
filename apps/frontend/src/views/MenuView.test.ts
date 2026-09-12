@@ -50,7 +50,7 @@ describe('MenuView Component', () => {
     vi.spyOn(api, 'fetchMenu').mockResolvedValue(mockMenu);
 
     const wrapper = mount(MenuView);
-    expect(wrapper.text()).toContain('Cargando menú frío...');
+    expect(wrapper.find('.menu-skeleton').exists()).toBe(true);
 
     await flushPromises();
 
