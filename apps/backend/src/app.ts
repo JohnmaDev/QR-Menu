@@ -52,8 +52,8 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       return cb(null, false);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'X-Idempotency-Key', 'If-None-Match', 'X-Requested-With'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key', 'If-None-Match', 'X-Requested-With'],
   });
 
   // Cookies (SEC-03: Exigir SESSION_SECRET robusto en producción)

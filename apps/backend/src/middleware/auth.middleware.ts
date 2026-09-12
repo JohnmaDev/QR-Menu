@@ -44,35 +44,52 @@ export function requireRole(allowedRoles: UserRole[]) {
   };
 }
 
+// Orígenes oficiales del proyecto en Vercel
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://qr-menu-frontend-zeta.vercel.app',
+];
+
 export function isOriginAllowed(origin: string | undefined): boolean {
   if (!origin) return true; // Peticiones server-to-server o herramientas CLI
   const normalized = origin.trim().replace(/\/+$/, '');
   const rawCorsOrigin = process.env.CORS_ORIGIN?.trim();
 
-  // 1. Si se definieron orígenes explícitos en CORS_ORIGIN, SOLO esos tienen permiso (Seguridad Estricta de Producción)
+  // 1. Origen explícito en DEFAULT_ALLOWED_ORIGINS o previsualizaciones Vercel del proyecto qr-menu-frontend
+  if (
+    DEFAULT_ALLOWED_ORIGINS.includes(normalized) ||
+    /^https:\/\/qr-menu-frontend.*\.vercel\.app$/.test(normalized)
+  ) {
+    return true;
+  }
+
+  // 2. Si se definieron orígenes explícitos en CORS_ORIGIN, verificarlos
   if (rawCorsOrigin && rawCorsOrigin !== '*') {
     const allowedOrigins = rawCorsOrigin
       .split(',')
       .map((o) => o.trim().replace(/\/+$/, ''))
       .filter(Boolean);
 
-    return allowedOrigins.includes(normalized);
+    if (allowedOrigins.includes(normalized)) {
+      return true;
+    }
   }
 
-  // 2. Si CORS_ORIGIN tiene comodín explícito '*'
+  // 3. Si CORS_ORIGIN tiene comodín explícito '*'
   if (rawCorsOrigin === '*') {
     return true;
   }
 
-  // 3. En entorno de desarrollo o testing sin CORS_ORIGIN explícito, permitir localhost
-  if (process.env.NODE_ENV !== 'production') {
-    return (
-      normalized.includes('localhost') ||
-      normalized.includes('127.0.0.1')
-    );
+  // 4. En entorno local / desarrollo / tests, permitir localhost y 127.0.0.1
+  if (
+    normalized.startsWith('http://localhost:') ||
+    normalized === 'http://localhost' ||
+    normalized.startsWith('http://127.0.0.1:') ||
+    normalized === 'http://127.0.0.1'
+  ) {
+    return true;
   }
 
-  // 4. En producción sin CORS_ORIGIN definido, denegar por seguridad
+  // 5. Denegar cualquier otro origen desconocido
   return false;
 }
 
