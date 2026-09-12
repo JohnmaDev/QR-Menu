@@ -47,6 +47,7 @@ export function requireRole(allowedRoles: UserRole[]) {
 // Orígenes oficiales del proyecto en Vercel
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://qr-menu-frontend-zeta.vercel.app',
+  'https://qr-menu-frontend-oe0qmb133-johnma.vercel.app',
 ];
 
 export function isOriginAllowed(origin: string | undefined): boolean {
