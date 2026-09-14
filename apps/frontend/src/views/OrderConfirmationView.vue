@@ -7,6 +7,7 @@ import { formatCOP } from '../utils/currency.js';
 import LoadingSpinner from '../components/common/LoadingSpinner.vue';
 import ErrorMessage from '../components/common/ErrorMessage.vue';
 import Icon from '../components/common/Icon.vue';
+import PaymentBrandLogo from '../components/common/PaymentBrandLogo.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -143,7 +144,7 @@ onUnmounted(() => {
       <header class="card-header">
         <div class="success-badge">
           <Icon name="check" :size="14" />
-          <span>El Mora • ¡Pedido Confirmado!</span>
+          <span>Licores Distrito 4 • ¡Pedido Confirmado!</span>
         </div>
         <h1 class="order-title">Pedido #{{ orderStatus.dailyOrderNumber ? String(orderStatus.dailyOrderNumber).padStart(2, '0') : orderStatus.orderNumber }}</h1>
         <div class="code-pill-wrap">
@@ -222,6 +223,12 @@ onUnmounted(() => {
           <span class="meta-label">Total de la orden</span>
           <span class="meta-value highlight">{{ formatCOP(orderStatus.totalAmount) }}</span>
         </div>
+        <div v-if="orderStatus.paymentMethodDeclared" class="meta-row">
+          <span class="meta-label">Método declarado</span>
+          <div class="meta-payment-box">
+            <PaymentBrandLogo :method="orderStatus.paymentMethodDeclared" :width="52" :height="26" />
+          </div>
+        </div>
         <div class="meta-row">
           <span class="meta-label">Estado de pago</span>
           <span
@@ -235,7 +242,7 @@ onUnmounted(() => {
       </section>
 
       <p class="wait-note">
-        Puedes mantener esta pantalla abierta mientras preparan tus bebidas. Se actualizará automáticamente.
+        Ya recibimos tu pedido y lo estamos preparando. Si deseas puedes cerrar esta pantalla con tranquilidad, te lo llevaremos directo a tu mesa.
       </p>
 
       <button type="button" class="new-order-btn" @click="handleNewOrder">
@@ -554,6 +561,11 @@ onUnmounted(() => {
 
 .payment-tag.paid .tag-dot {
   background: var(--accent-green);
+}
+
+.meta-payment-box {
+  display: flex;
+  align-items: center;
 }
 
 .wait-note {

@@ -101,7 +101,7 @@ onMounted(() => {
     <header class="bar-header">
       <div class="header-inner">
         <div class="brand-block">
-          <h1 class="brand-title">El Mora</h1>
+          <h1 class="brand-title">Licores Distrito 4</h1>
         </div>
         <div v-if="tableToken" class="table-chip">
           <span class="live-dot" />

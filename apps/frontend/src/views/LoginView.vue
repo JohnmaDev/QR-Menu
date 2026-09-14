@@ -37,7 +37,7 @@ async function handleLogin() {
     <div class="login-card">
       <header class="login-header">
         <div class="brand-badge">
-          <span>El Mora Ops</span>
+          <span>Licores Distrito 4 Ops</span>
         </div>
         <h1 class="login-title">Control de Caja</h1>
         <p class="login-subtitle">

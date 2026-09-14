@@ -60,7 +60,7 @@ describe('OpsDashboardView Component', () => {
     const wrapper = mount(OpsDashboardView);
     await flushPromises();
 
-    expect(wrapper.text()).toContain('El Mora');
+    expect(wrapper.text()).toContain('Licores Distrito 4');
     expect(wrapper.text()).toContain('Caja');
     expect(wrapper.text()).toContain('cajero_juan');
     expect(wrapper.text()).toContain('CASHIER');

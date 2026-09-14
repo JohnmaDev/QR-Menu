@@ -21,6 +21,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner.vue';
 import Icon from '../components/common/Icon.vue';
 import AdminTablesTab from '../components/admin/AdminTablesTab.vue';
 import AdminProductsTab from '../components/admin/AdminProductsTab.vue';
+import PaymentBrandLogo from '../components/common/PaymentBrandLogo.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -435,7 +436,7 @@ onUnmounted(() => {
         <div class="logo-icon-box">
           <Icon name="beer" :size="20" color="var(--accent-gold)" />
         </div>
-        <h1 class="ops-brand">El Mora <span class="badge-brand">{{ authStore.isAdmin ? 'Admin' : 'Caja' }}</span></h1>
+        <h1 class="ops-brand">Licores Distrito 4 <span class="badge-brand">{{ authStore.isAdmin ? 'Admin' : 'Caja' }}</span></h1>
         <div class="role-badge" :class="`role-${userRole.toLowerCase()}`">
           <span class="role-dot" />
           <span>{{ userRole }}</span>
@@ -700,19 +701,31 @@ onUnmounted(() => {
 
           <div class="methods-grid">
             <div class="method-card">
-              <span class="method-title">💵 Efectivo</span>
+              <div class="method-brand-top">
+                <PaymentBrandLogo :method="PaymentMethodDeclared.CASH" :width="46" :height="23" />
+                <span class="method-title">Efectivo</span>
+              </div>
               <span class="method-sum">{{ formatCOP(historyDailySales.totalCash) }}</span>
             </div>
             <div class="method-card">
-              <span class="method-title">📱 Nequi</span>
+              <div class="method-brand-top">
+                <PaymentBrandLogo :method="PaymentMethodDeclared.NEQUI" :width="46" :height="23" />
+                <span class="method-title">Nequi</span>
+              </div>
               <span class="method-sum">{{ formatCOP(historyDailySales.totalNequi) }}</span>
             </div>
             <div class="method-card">
-              <span class="method-title">🏦 Bancolombia</span>
+              <div class="method-brand-top">
+                <PaymentBrandLogo :method="PaymentMethodDeclared.BANCOLOMBIA" :width="46" :height="23" />
+                <span class="method-title">Bancolombia</span>
+              </div>
               <span class="method-sum">{{ formatCOP(historyDailySales.totalBancolombia) }}</span>
             </div>
             <div class="method-card">
-              <span class="method-title">⚡ Bre-B</span>
+              <div class="method-brand-top">
+                <PaymentBrandLogo :method="PaymentMethodDeclared.BRE_B" :width="46" :height="23" />
+                <span class="method-title">Bre-B</span>
+              </div>
               <span class="method-sum">{{ formatCOP(historyDailySales.totalBreB) }}</span>
             </div>
           </div>
@@ -770,7 +783,10 @@ onUnmounted(() => {
           <div class="modal-summary">
             <div class="modal-summary-row">
               <span class="modal-summary-label">Método declarado:</span>
-              <span class="modal-summary-val">{{ paymentModalOrder.paymentMethodDeclared }}</span>
+              <div class="modal-payment-wrap">
+                <PaymentBrandLogo :method="paymentModalOrder.paymentMethodDeclared" :width="48" :height="24" />
+                <span class="modal-summary-val">{{ paymentModalOrder.paymentMethodDeclared }}</span>
+              </div>
             </div>
             <div class="modal-summary-row highlight">
               <span class="modal-summary-label">Total a cobrar:</span>
@@ -1332,8 +1348,14 @@ onUnmounted(() => {
 .modal-summary-row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   font-size: 0.88rem;
+}
+
+.modal-payment-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modal-summary-row.highlight {
@@ -1690,6 +1712,12 @@ onUnmounted(() => {
 .method-card:hover {
   border-color: var(--border-highlight);
   transform: translateY(-2px);
+}
+
+.method-brand-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .method-title {

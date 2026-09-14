@@ -9,6 +9,7 @@ import {
 } from '@qr-menu/shared';
 import { formatCOP } from '../../utils/currency.js';
 import Icon from '../common/Icon.vue';
+import PaymentBrandLogo from '../common/PaymentBrandLogo.vue';
 
 const props = defineProps<{
   order: OpsOrder;
@@ -145,6 +146,11 @@ const paymentMethodLabel = computed(() => {
         <span class="badge-dot" />
         POR COBRAR ({{ paymentMethodLabel }})
       </span>
+
+      <!-- Logo Oficial de Método de Pago -->
+      <div v-if="props.order.paymentMethodDeclared" class="comanda-payment-brand" :title="paymentMethodLabel">
+        <PaymentBrandLogo :method="props.order.paymentMethodDeclared" :width="46" :height="22" />
+      </div>
     </div>
 
     <!-- Notas destacadas -->
@@ -349,7 +355,13 @@ const paymentMethodLabel = computed(() => {
 .status-badges {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.comanda-payment-brand {
+  display: inline-flex;
+  align-items: center;
 }
 
 .badge {

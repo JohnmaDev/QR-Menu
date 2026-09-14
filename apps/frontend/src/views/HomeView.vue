@@ -4,7 +4,7 @@
 
 <template>
   <main class="home-container">
-    <h1>Menú Digital Bar</h1>
+    <h1>Licores Distrito 4</h1>
     <p>Por favor escanea el código QR ubicado en tu mesa para realizar un pedido.</p>
   </main>
 </template>

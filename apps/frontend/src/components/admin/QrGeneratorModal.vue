@@ -317,7 +317,7 @@ async function downloadCompositePng() {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#f59e0b';
     ctx.font = 'bold 38px sans-serif';
-    ctx.fillText('EL MORA • BAR & LOUNGE', width / 2, 140);
+    ctx.fillText('LICORES DISTRITO 4', width / 2, 140);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 68px sans-serif';
@@ -453,7 +453,7 @@ onMounted(() => {
             <!-- Contenido de la tarjeta en vivo -->
             <div class="stand-content">
               <div class="stand-header">
-                <span class="stand-brand">El Mora Bar</span>
+                <span class="stand-brand">Licores Distrito 4</span>
                 <span class="stand-table-tag">{{ tableDisplayName }}</span>
               </div>
 

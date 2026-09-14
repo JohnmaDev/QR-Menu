@@ -7,6 +7,7 @@ import { formatCOP } from '../utils/currency.js';
 import { PaymentMethodDeclared } from '@qr-menu/shared';
 import ErrorMessage from '../components/common/ErrorMessage.vue';
 import Icon from '../components/common/Icon.vue';
+import PaymentBrandLogo from '../components/common/PaymentBrandLogo.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -20,10 +21,10 @@ if (tableToken.value && cart.tableToken !== tableToken.value) {
 }
 
 const paymentOptions = [
-  { value: PaymentMethodDeclared.CASH, label: 'Efectivo', iconName: 'cash' },
-  { value: PaymentMethodDeclared.BRE_B, label: 'Bre-B', iconName: 'bre-b' },
-  { value: PaymentMethodDeclared.NEQUI, label: 'Nequi', iconName: 'nequi' },
-  { value: PaymentMethodDeclared.BANCOLOMBIA, label: 'Bancolombia', iconName: 'bancolombia' },
+  { value: PaymentMethodDeclared.CASH, label: 'Efectivo', subtitle: 'En mesa o caja' },
+  { value: PaymentMethodDeclared.BRE_B, label: 'Bre-B', subtitle: 'Inmediato sin costo' },
+  { value: PaymentMethodDeclared.NEQUI, label: 'Nequi', subtitle: 'Transferencia directa' },
+  { value: PaymentMethodDeclared.BANCOLOMBIA, label: 'Bancolombia', subtitle: 'QR o Transferencia' },
 ];
 
 function goBackToMenu() {
@@ -200,10 +201,11 @@ async function handleConfirmOrder() {
             :aria-checked="cart.paymentMethodDeclared === opt.value"
             @click="cart.setPaymentMethod(opt.value)"
           >
-            <div class="payment-icon-wrap">
-              <Icon :name="opt.iconName" :size="20" />
+            <PaymentBrandLogo :method="opt.value" :width="54" :height="28" />
+            <div class="payment-info">
+              <span class="payment-text">{{ opt.label }}</span>
+              <span class="payment-sub">{{ opt.subtitle }}</span>
             </div>
-            <span class="payment-text">{{ opt.label }}</span>
             <div v-if="cart.paymentMethodDeclared === opt.value" class="payment-selected-indicator">
               <Icon name="check" :size="12" />
             </div>
@@ -516,18 +518,25 @@ async function handleConfirmOrder() {
   gap: 10px;
 }
 
+@media (max-width: 420px) {
+  .payment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .payment-option {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 10px 12px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   color: var(--text-secondary);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
+  cursor: pointer;
 }
 
 .payment-option:hover {
@@ -543,26 +552,28 @@ async function handleConfirmOrder() {
   box-shadow: 0 0 16px rgba(245, 158, 11, 0.15);
 }
 
-.payment-icon-wrap {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+.payment-info {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent-gold);
-  transition: all 0.2s;
-}
-
-.payment-option.selected .payment-icon-wrap {
-  background: var(--accent-gold);
-  color: #0b0e14;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .payment-text {
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.payment-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .payment-selected-indicator {

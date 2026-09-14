@@ -154,6 +154,7 @@ export const OrderStatusResponseSchema = z.object({
     FulfillmentStatus.CANCELLED,
   ]),
   paymentStatus: z.enum([PaymentStatus.UNPAID, PaymentStatus.PAID]),
+  paymentMethodDeclared: z.string().optional(),
   totalAmount: z.number(),
   createdAt: z.string(),
 });

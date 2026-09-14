@@ -54,7 +54,7 @@ describe('MenuView Component', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('El Mora');
+    expect(wrapper.text()).toContain('Licores Distrito 4');
     expect(wrapper.text()).toContain('Cervezas');
     expect(wrapper.text()).toContain('Pilsen 330ml');
     expect(wrapper.text()).toContain('$5.000');

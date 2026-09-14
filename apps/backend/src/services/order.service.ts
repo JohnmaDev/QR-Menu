@@ -329,6 +329,7 @@ export async function getOrderStatus(
       customerName: orders.customerName,
       fulfillmentStatus: orders.fulfillmentStatus,
       paymentStatus: orders.paymentStatus,
+      paymentMethodDeclared: orders.paymentMethod,
       totalAmount: orders.totalAmount,
       createdAt: orders.createdAt,
     })
@@ -352,6 +353,7 @@ export async function getOrderStatus(
     customerName: order.customerName || undefined,
     fulfillmentStatus: order.fulfillmentStatus,
     paymentStatus: order.paymentStatus,
+    paymentMethodDeclared: order.paymentMethodDeclared || undefined,
     totalAmount: Number(order.totalAmount),
     createdAt: order.createdAt.toISOString(),
   };
