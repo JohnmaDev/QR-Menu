@@ -377,7 +377,7 @@ onMounted(() => {
           <div class="form-group image-upload-group">
             <div class="image-field-header">
               <label>Foto del Producto</label>
-              <span class="image-field-hint">Cloudinary • Optimización AVIF/WebP</span>
+              <span class="image-field-hint">Optimización AVIF/WebP</span>
             </div>
 
             <!-- Previsualización si ya existe imagen -->
@@ -435,7 +435,7 @@ onMounted(() => {
                   </svg>
                 </div>
                 <div class="upload-btn-texts">
-                  <span class="upload-btn-title">Subir Foto a Cloudinary</span>
+                  <span class="upload-btn-title">Subir Foto</span>
                   <span class="upload-btn-desc">Desde PC, galería o cámara del celular</span>
                 </div>
               </button>

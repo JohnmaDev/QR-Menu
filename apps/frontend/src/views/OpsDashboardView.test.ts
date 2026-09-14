@@ -63,7 +63,6 @@ describe('OpsDashboardView Component', () => {
     expect(wrapper.text()).toContain('Licores Distrito 4');
     expect(wrapper.text()).toContain('Caja');
     expect(wrapper.text()).toContain('cajero_juan');
-    expect(wrapper.text()).toContain('CASHIER');
     expect(wrapper.find('.order-card').exists()).toBe(true);
     expect(wrapper.text()).toContain('ORD-ABC123');
   });

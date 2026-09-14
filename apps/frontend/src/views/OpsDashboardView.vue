@@ -437,10 +437,6 @@ onUnmounted(() => {
           <Icon name="beer" :size="20" color="var(--accent-gold)" />
         </div>
         <h1 class="ops-brand">Licores Distrito 4 <span class="badge-brand">{{ authStore.isAdmin ? 'Admin' : 'Caja' }}</span></h1>
-        <div class="role-badge" :class="`role-${userRole.toLowerCase()}`">
-          <span class="role-dot" />
-          <span>{{ userRole }}</span>
-        </div>
       </div>
 
       <!-- Pill persistente de Pagos Totales de Hoy (toggle directo para abrir / esconder resumen de pagos) -->
