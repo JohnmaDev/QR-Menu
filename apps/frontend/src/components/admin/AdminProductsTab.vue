@@ -10,6 +10,8 @@ import {
   ApiClientError,
 } from '../../services/api.js';
 import { formatCOP } from '../../utils/currency.js';
+import { optimizeProductImage } from '../../utils/images.js';
+import { openProductImageWidget } from '../../utils/cloudinary.js';
 import Icon from '../common/Icon.vue';
 import LoadingSpinner from '../common/LoadingSpinner.vue';
 
@@ -33,6 +35,8 @@ const formPrice = ref<number | ''>('');
 const formDescription = ref('');
 const formImageUrl = ref('');
 const formIsAvailable = ref(true);
+const isUploadingCloudinary = ref(false);
+const cloudinaryUploadError = ref<string | null>(null);
 
 const filteredProducts = computed(() => {
   if (selectedCategoryFilter.value === 'ALL') return products.value;
@@ -71,6 +75,8 @@ function openCreateModal() {
   formDescription.value = '';
   formImageUrl.value = '';
   formIsAvailable.value = true;
+  cloudinaryUploadError.value = null;
+  isUploadingCloudinary.value = false;
   isModalOpen.value = true;
 }
 
@@ -82,12 +88,37 @@ function openEditModal(prod: AdminProduct) {
   formDescription.value = prod.description || '';
   formImageUrl.value = prod.imageUrl || '';
   formIsAvailable.value = prod.isAvailable;
+  cloudinaryUploadError.value = null;
+  isUploadingCloudinary.value = false;
   isModalOpen.value = true;
 }
 
 function closeModal() {
   isModalOpen.value = false;
   editingProduct.value = null;
+  cloudinaryUploadError.value = null;
+  isUploadingCloudinary.value = false;
+}
+
+function handleUploadImage() {
+  cloudinaryUploadError.value = null;
+  isUploadingCloudinary.value = true;
+  openProductImageWidget({
+    onSuccess: (secureUrl) => {
+      formImageUrl.value = secureUrl;
+      isUploadingCloudinary.value = false;
+    },
+    onError: (err) => {
+      console.error('Error Cloudinary Widget:', err);
+      cloudinaryUploadError.value = 'No se pudo abrir o completar la subida de la imagen.';
+      isUploadingCloudinary.value = false;
+    },
+  });
+}
+
+function handleRemoveImage() {
+  formImageUrl.value = '';
+  cloudinaryUploadError.value = null;
 }
 
 async function handleSaveProduct() {
@@ -236,10 +267,11 @@ onMounted(() => {
         <div class="product-thumb-box">
           <img
             v-if="prod.imageUrl"
-            :src="prod.imageUrl"
+            :src="optimizeProductImage(prod.imageUrl, 120)"
             :alt="prod.name"
             class="product-thumb"
             loading="lazy"
+            decoding="async"
             @error="prod.imageUrl = null"
           />
           <div v-else class="thumb-fallback">
@@ -342,17 +374,88 @@ onMounted(() => {
             ></textarea>
           </div>
 
-          <div class="form-group">
-            <label for="prod-img">URL de Imagen (opcional)</label>
-            <input
-              id="prod-img"
-              v-model="formImageUrl"
-              type="url"
-              placeholder="https://ejemplo.com/foto.jpg"
-            />
-            <div v-if="formImageUrl" class="img-preview-box">
-              <img :src="formImageUrl" alt="Vista previa" class="img-preview" />
+          <div class="form-group image-upload-group">
+            <div class="image-field-header">
+              <label>Foto del Producto</label>
+              <span class="image-field-hint">Cloudinary • Optimización AVIF/WebP</span>
             </div>
+
+            <!-- Previsualización si ya existe imagen -->
+            <div v-if="formImageUrl" class="current-image-preview-card">
+              <div class="img-preview-box">
+                <img :src="optimizeProductImage(formImageUrl, 260)" alt="Vista previa" class="img-preview" />
+              </div>
+              <div class="preview-actions">
+                <div class="preview-status">
+                  <span class="preview-status-dot"></span>
+                  <span class="preview-status-text">Foto lista para la carta</span>
+                </div>
+                <div class="preview-buttons">
+                  <button
+                    type="button"
+                    class="btn-change-image"
+                    :disabled="isUploadingCloudinary"
+                    @click="handleUploadImage"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span>Cambiar</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-remove-image"
+                    @click="handleRemoveImage"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    <span>Quitar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botón de subida directo si no hay imagen -->
+            <div v-else class="upload-trigger-box">
+              <button
+                type="button"
+                class="btn-cloudinary-upload"
+                :disabled="isUploadingCloudinary"
+                @click="handleUploadImage"
+              >
+                <div class="upload-icon-circle">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <div class="upload-btn-texts">
+                  <span class="upload-btn-title">Subir Foto a Cloudinary</span>
+                  <span class="upload-btn-desc">Desde PC, galería o cámara del celular</span>
+                </div>
+              </button>
+            </div>
+
+            <div v-if="cloudinaryUploadError" class="cloudinary-error">
+              {{ cloudinaryUploadError }}
+            </div>
+
+            <!-- Entrada manual secundaria opcional -->
+            <details class="manual-url-details">
+              <summary>O pegar URL manual</summary>
+              <input
+                id="prod-img"
+                v-model="formImageUrl"
+                type="url"
+                placeholder="https://res.cloudinary.com/... o enlace de imagen"
+                class="manual-url-input"
+              />
+            </details>
           </div>
 
           <div class="checkbox-group">
@@ -749,18 +852,202 @@ onMounted(() => {
 }
 
 .img-preview-box {
-  margin-top: 8px;
   width: 100%;
-  height: 100px;
-  border-radius: 8px;
+  height: 140px;
+  border-radius: 10px;
   overflow: hidden;
-  background: #111;
+  background: #0d0f14;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .img-preview {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Cloudinary Upload Styles */
+.image-upload-group {
+  gap: 8px;
+}
+
+.image-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.image-field-hint {
+  font-size: 0.72rem;
+  color: var(--accent-gold, #c5a059);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.upload-trigger-box {
+  width: 100%;
+}
+
+.btn-cloudinary-upload {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(145deg, rgba(197, 160, 89, 0.08), rgba(255, 255, 255, 0.02));
+  border: 1.5px dashed rgba(197, 160, 89, 0.4);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  color: #fff;
+}
+
+.btn-cloudinary-upload:hover:not(:disabled) {
+  border-color: var(--accent-gold, #c5a059);
+  background: linear-gradient(145deg, rgba(197, 160, 89, 0.16), rgba(255, 255, 255, 0.05));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(197, 160, 89, 0.15);
+}
+
+.btn-cloudinary-upload:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.upload-icon-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(197, 160, 89, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-gold, #c5a059);
+  flex-shrink: 0;
+}
+
+.upload-btn-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.upload-btn-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.upload-btn-desc {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.current-image-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #11141c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.preview-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.preview-status-text {
+  font-size: 0.74rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.preview-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-change-image,
+.btn-remove-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-change-image {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e5e7eb;
+}
+
+.btn-change-image:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.btn-remove-image {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.btn-remove-image:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.cloudinary-error {
+  font-size: 0.78rem;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.manual-url-details {
+  margin-top: 4px;
+}
+
+.manual-url-details summary {
+  font-size: 0.74rem;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+}
+
+.manual-url-details summary:hover {
+  color: #aaa;
+}
+
+.manual-url-input {
+  margin-top: 6px;
+  width: 100%;
 }
 
 .checkbox-group {

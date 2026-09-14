@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue';
 import { MenuItem } from '@qr-menu/shared';
 import { formatCOP } from '../../utils/currency.js';
+import { optimizeProductImage } from '../../utils/images.js';
 import Icon from '../common/Icon.vue';
 
-defineProps<{
+const props = defineProps<{
   product: MenuItem;
   quantityInCart: number;
   categoryId?: number;
@@ -14,10 +16,29 @@ defineEmits<{
   (e: 'increment', productId: number): void;
   (e: 'decrement', productId: number): void;
 }>();
+
+const imageError = ref(false);
+
+const optimizedImage = computed(() => {
+  if (!props.product.imageUrl || imageError.value) return null;
+  return optimizeProductImage(props.product.imageUrl, 160);
+});
 </script>
 
 <template>
   <article class="product-card" :aria-labelledby="`prod-title-${product.id}`">
+    <!-- Miniatura optimizada de Cloudinary -->
+    <div v-if="optimizedImage" class="product-media">
+      <img
+        :src="optimizedImage"
+        :alt="product.name"
+        class="product-card-img"
+        loading="lazy"
+        decoding="async"
+        @error="imageError = true"
+      />
+    </div>
+
     <div class="product-info">
       <div class="product-header-row">
         <h3 :id="`prod-title-${product.id}`" class="product-name">
@@ -89,6 +110,29 @@ defineEmits<{
   background: var(--bg-card-hover);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
+}
+
+.product-media {
+  width: 66px;
+  height: 66px;
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-card, #141720);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  box-shadow: var(--shadow-sm);
+}
+
+.product-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s ease;
+}
+
+.product-card:hover .product-card-img {
+  transform: scale(1.06);
 }
 
 .product-info {

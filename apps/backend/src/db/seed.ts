@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from './index.js';
 import { users, tables, categories, products } from './schema.js';
 
@@ -79,6 +80,11 @@ export async function runSeed(db = getDb()) {
     { id: 14, categoryId: 5, name: 'Papas Lays Clásicas', description: 'Paquete mediano', price: '3500.00', isAvailable: true, sortOrder: 1 },
     { id: 15, categoryId: 5, name: 'De Todito Natural', description: 'Paquete mediano', price: '4500.00', isAvailable: true, sortOrder: 2 },
   ]).onConflictDoNothing();
+
+  // Sincronizar secuencias serial de Postgres para que nuevos registros no choquen con los IDs del seed
+  await db.execute(sql`SELECT setval('products_id_seq', COALESCE((SELECT MAX(id) FROM "products"), 1), (SELECT COUNT(*) > 0 FROM "products"))`);
+  await db.execute(sql`SELECT setval('categories_id_seq', COALESCE((SELECT MAX(id) FROM "categories"), 1), (SELECT COUNT(*) > 0 FROM "categories"))`);
+  await db.execute(sql`SELECT setval('tables_id_seq', COALESCE((SELECT MAX(id) FROM "tables"), 1), (SELECT COUNT(*) > 0 FROM "tables"))`);
 
   return { status: 'seed_completed' };
 }
