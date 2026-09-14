@@ -65,9 +65,19 @@ export interface OpenWidgetOptions {
 export async function openProductImageWidget({
   onSuccess,
   onError,
-  folder = 'Licores Distrito 4/products',
+  folder,
 }: OpenWidgetOptions): Promise<void> {
   try {
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME?.trim();
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET?.trim();
+    const targetFolder = folder || import.meta.env.VITE_CLOUDINARY_FOLDER?.trim() || 'products';
+
+    if (!cloudName || !uploadPreset) {
+      throw new Error(
+        'Configuración de Cloudinary no encontrada. Asegúrate de configurar VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET en tus variables de entorno.'
+      );
+    }
+
     await loadCloudinaryScript();
 
     if (!window.cloudinary) {
@@ -76,9 +86,9 @@ export async function openProductImageWidget({
 
     const widget = window.cloudinary.createUploadWidget(
       {
-        cloudName: 'dtgjwuclv',
-        uploadPreset: 'licores_distrito4',
-        folder,
+        cloudName,
+        uploadPreset,
+        folder: targetFolder,
         sources: ['local', 'camera', 'url'],
         multiple: false,
         resourceType: 'image',
